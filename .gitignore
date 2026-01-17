@@ -1,4 +1,7 @@
-build/*
+/build/*
 traces/*
 .trace
 .coverage*
+.vscode
+/docs
+/build
