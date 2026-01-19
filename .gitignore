@@ -5,3 +5,4 @@ traces/*
 .vscode
 /docs
 /build
+node_modules

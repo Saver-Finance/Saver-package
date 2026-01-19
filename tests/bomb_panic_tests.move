@@ -2,10 +2,10 @@
 module games::bomb_panic_tests;
 
 use games::bomb_panic::{Self, GameState, GameHubRef, SettlementIntent};
-use sui::clock::{Self, Clock};
-use sui::random::{Self, Random};
-use sui::sui::SUI;
-use sui::test_scenario::{Self as ts, Scenario};
+use one::clock::{Self, Clock};
+use one::random::{Self, Random};
+use one::oct::OCT;
+use one::test_scenario::{Self as ts, Scenario};
 
 const POOL_VALUE: u64 = 1_000_000;
 const PLAYER_COUNT: u64 = 4;
@@ -39,7 +39,7 @@ fun test_join_adds_players_up_to_max() {
     // Create game
     ts::next_tx(&mut scenario, ALICE);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     
     // Join 4 players
     ts::next_tx(&mut scenario, ALICE);
@@ -69,7 +69,7 @@ fun test_join_cannot_exceed_max_players() {
     // Create game
     ts::next_tx(&mut scenario, ALICE);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     
     ts::next_tx(&mut scenario, @0x1);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
@@ -105,7 +105,7 @@ fun test_join_cannot_join_twice() {
     // Create game
     ts::next_tx(&mut scenario, ALICE);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     
     // Alice joins
     ts::next_tx(&mut scenario, ALICE);
@@ -130,7 +130,7 @@ fun test_start_round_sets_playing_state() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
@@ -169,7 +169,7 @@ fun test_pass_bomb_changes_holder_and_reduces_pool() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join players
@@ -218,7 +218,7 @@ fun test_pass_bomb_only_holder_can_call() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join players
@@ -254,7 +254,7 @@ fun test_try_explode_before_deadline_does_nothing() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
@@ -294,7 +294,7 @@ fun test_try_explode_after_deadline_ends_game() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
@@ -335,7 +335,7 @@ fun test_consume_settlement_intent_works_once() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
@@ -371,7 +371,7 @@ fun test_consume_settlement_intent_fails_second_time() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
@@ -411,7 +411,7 @@ fun test_full_workflow_happy_path() {
     ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
-    let mut game = bomb_panic::create_game_state<SUI>(hub_ref, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join 4 players

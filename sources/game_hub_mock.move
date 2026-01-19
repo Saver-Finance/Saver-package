@@ -1,6 +1,6 @@
 module games::game_hub_mock;
 
-use sui::event;
+use one::event;
 
 /// Simple room status codes for tests.
 /// 0 = Idle, 1 = Running, 2 = Ended, 3 = Settled.

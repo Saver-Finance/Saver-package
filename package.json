@@ -1,0 +1,25 @@
+{
+  "name": "bomb_panic",
+  "version": "1.0.0",
+  "description": "Bomb Panic game smart contract tests",
+  "type": "module",
+  "scripts": {
+    "test:integration": "ts-node tests/integration.test.ts",
+    "test:simple": "ts-node tests/bomb_panic_tests.ts"
+  },
+  "keywords": [
+    "sui",
+    "move",
+    "blockchain",
+    "game"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@onelabs/sui": "^1.19.0",
+    "@types/node": "^22.10.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  }
+}

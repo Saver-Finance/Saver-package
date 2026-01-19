@@ -2,16 +2,39 @@
 # This file should be checked in.
 
 [move]
-version = 4
+version = 3
+manifest_digest = "FD438943680CB1216745BC42CE7743EEFFD9839A4940790D3B424D3A589C360D"
+deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
+dependencies = [
+  { id = "MoveStdlib", name = "MoveStdlib" },
+  { id = "One", name = "One" },
+]
+
+[[move.package]]
+id = "MoveStdlib"
+source = { git = "https://github.com/one-chain-labs/onechain.git", rev = "main", subdir = "crates/sui-framework/packages/move-stdlib" }
+
+[[move.package]]
+id = "One"
+source = { git = "https://github.com/one-chain-labs/onechain.git", rev = "main", subdir = "crates/sui-framework/packages/one-framework" }
+
+dependencies = [
+  { id = "MoveStdlib", name = "MoveStdlib" },
+]
+
+[move.toolchain-version]
+compiler-version = "1.1.1"
+edition = "2024.beta"
+flavor = "one"
 
 [pinned.testnet.MoveStdlib]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "22f9fc9781732d651e18384c9a8eb1dabddf73a6" }
+source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "15a6c7b1f14c75ec1829a475172c41b5e6d31c85" }
 use_environment = "testnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
 
-[pinned.testnet.Sui]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "22f9fc9781732d651e18384c9a8eb1dabddf73a6" }
+[pinned.testnet.One]
+source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/one-framework", rev = "15a6c7b1f14c75ec1829a475172c41b5e6d31c85" }
 use_environment = "testnet"
 manifest_digest = "7AFB66695545775FBFBB2D3078ADFD084244D5002392E837FDE21D9EA1C6D01C"
 deps = { MoveStdlib = "MoveStdlib" }
@@ -19,5 +42,13 @@ deps = { MoveStdlib = "MoveStdlib" }
 [pinned.testnet.bomb_panic]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
-deps = { std = "MoveStdlib", sui = "Sui" }
+manifest_digest = "656F502DE8AF855E2B0B9B3B65A5DC05E9078B188A28B12778A176CC40D97E41"
+deps = { MoveStdlib = "MoveStdlib", One = "One" }
+
+[env]
+
+[env.testnet]
+chain-id = "1bd5c965"
+original-published-id = "0xa421e6b6f0f8d5e3d9f1fbf955c8cc54486788cdb85d4c3c60f9f67d242b6e75"
+latest-published-id = "0xa421e6b6f0f8d5e3d9f1fbf955c8cc54486788cdb85d4c3c60f9f67d242b6e75"
+published-version = "1"

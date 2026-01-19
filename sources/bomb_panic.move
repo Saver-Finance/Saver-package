@@ -1,9 +1,9 @@
 #[allow(lint(public_entry), lint(public_random))]
 module games::bomb_panic;
 
-use sui::clock::{Self, Clock};
-use sui::event;
-use sui::random::{Self, Random};
+use one::clock::{Self, Clock};
+use one::event;
+use one::random::{Self, Random};
 
 /// Fixed-point scale for calculations (1.0x = 10_000).
 const SCALE: u64 = 10_000;
@@ -116,7 +116,7 @@ public struct SettlementIntentReady has copy, drop, store {
 /// Create game state bound to hub.
 public fun create_game_state<T>(
     hub_ref: GameHubRef,
-    ctx: &mut sui::tx_context::TxContext,
+    ctx: &mut one::tx_context::TxContext,
 ): GameState<T> {
     GameState {
         id: object::new(ctx),
@@ -138,15 +138,25 @@ public fun create_game_state<T>(
     }
 }
 
+/// Initialize and share a new game state (for testing/deployment).
+public entry fun initialize_game<T>(
+    hub_id: address,
+    ctx: &mut one::tx_context::TxContext,
+) {
+    let hub_ref = GameHubRef { id: object::id_from_address(hub_id) };
+    let game = create_game_state<T>(hub_ref, ctx);
+    transfer::share_object(game);
+}
+
 /// Join a round (Waiting phase only).
 public entry fun join<T>(
     game: &mut GameState<T>,
-    ctx: &mut sui::tx_context::TxContext,
+    ctx: &mut one::tx_context::TxContext,
 ) {
     assert!(is_waiting(&game.phase), E_WRONG_PHASE);
     assert!(vector::length(&game.players) < game.max_players, E_TOO_MANY_PLAYERS);
     
-    let player_addr = sui::tx_context::sender(ctx);
+    let player_addr = one::tx_context::sender(ctx);
     let idx_opt = find_player_index(&game.players, player_addr);
     assert!(option::is_none(&idx_opt), E_ALREADY_JOINED);
     
@@ -162,7 +172,7 @@ public entry fun start_round<T>(
     game: &mut GameState<T>,
     clock: &Clock,
     pool_value: u64,
-    ctx: &mut sui::tx_context::TxContext,
+    ctx: &mut one::tx_context::TxContext,
 ) {
     assert!(is_waiting(&game.phase), E_WRONG_PHASE);
     assert!(vector::length(&game.players) > 0, E_NO_ALIVE_PLAYERS);
@@ -204,11 +214,11 @@ public entry fun pass_bomb<T>(
     rng: &Random,
     game: &mut GameState<T>,
     clock: &Clock,
-    ctx: &mut sui::tx_context::TxContext,
+    ctx: &mut one::tx_context::TxContext,
 ) {
     assert!(is_playing(&game.phase), E_WRONG_PHASE);
     
-    let sender = sui::tx_context::sender(ctx);
+    let sender = one::tx_context::sender(ctx);
     let current_holder = *option::borrow(&game.bomb_holder);
     assert!(sender == current_holder, E_NOT_HOLDER);
     
@@ -426,7 +436,7 @@ fun select_random_alive_player(
     rng: &Random,
     players: &vector<Player>,
     exclude: address,
-    ctx: &mut sui::tx_context::TxContext,
+    ctx: &mut one::tx_context::TxContext,
 ): address {
     let mut alive_candidates = vector::empty<address>();
     let len = vector::length(players);
@@ -450,7 +460,7 @@ fun select_random_alive_player(
 fun select_random_player(
     rng: &Random,
     players: &vector<Player>,
-    ctx: &mut sui::tx_context::TxContext,
+    ctx: &mut one::tx_context::TxContext,
 ): address {
     assert!(vector::length(players) > 0, E_NO_ALIVE_PLAYERS);
     
@@ -465,7 +475,7 @@ fun sample_delay(
     rng: &Random,
     min_ms: u64,
     max_ms: u64,
-    ctx: &mut sui::tx_context::TxContext,
+    ctx: &mut one::tx_context::TxContext,
 ): u64 {
     let mut generator = random::new_generator(rng, ctx);
     random::generate_u64_in_range(&mut generator, min_ms, max_ms)
