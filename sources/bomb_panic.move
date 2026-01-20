@@ -1,23 +1,22 @@
 #[allow(lint(public_entry), lint(public_random))]
 module games::bomb_panic;
 
+use std::string::{Self, String};
 use one::clock::{Self, Clock};
 use one::event;
 use one::random::{Self, Random};
 
-/// Fixed-point scale for calculations (1.0x = 10_000).
-const SCALE: u64 = 10_000;
 /// Basis points denominator.
 const BPS_DENOM: u64 = 10_000;
-/// Max players per round.
-const MAX_PLAYERS: u64 = 4;
-/// Holder earns basis points per second from their entry fee.
+// Holder earns basis points per second from their entry fee.
 /// 100 bps/sec = 1%/sec => 10 sec = 10% of entry fee (1.1x concept).
 const REWARD_BPS_PER_SEC: u64 = 100;
 /// Min delay before explosion (ms).
 const MIN_EXPLODE_DELAY_MS: u64 = 5_000;
 /// Max delay before explosion (ms).
 const MAX_EXPLODE_DELAY_MS: u64 = 30_000;
+/// Max time a single player can hold the bomb (anti-camping).
+const MAX_HOLD_TIME_MS: u64 = 10_000;
 
 /// Error codes.
 const E_WRONG_PHASE: u64 = 1;
@@ -27,6 +26,10 @@ const E_NO_ALIVE_PLAYERS: u64 = 4;
 const E_ALREADY_JOINED: u64 = 5;
 const E_SETTLEMENT_CONSUMED: u64 = 7;
 const E_POOL_EMPTY: u64 = 8;
+const E_NOT_JOINED: u64 = 9;
+const E_SETTLEMENT_NOT_CONSUMED: u64 = 10;
+const E_NOT_ENOUGH_PLAYERS: u64 = 11;
+const E_UNAUTHORIZED: u64 = 12;
 
 /// Phase enum for round lifecycle.
 public enum GamePhase has copy, drop, store {
@@ -65,17 +68,22 @@ public struct SettlementIntent has drop, store {
 /// Core game state (one per coin type).
 public struct GameState<phantom T> has key, store {
     id: object::UID,
+    name: String,
     phase: GamePhase,
     round_id: u64,
     players: vector<Player>,
     pool_value: u64,
-    entry_fee_per_player: u64,
+    entry_fee: u64, // Configured entry fee per player
+    entry_fee_per_player: u64, // Actual fee calculated at start_round (usually equals entry_fee)
     bomb_holder: option::Option<address>,
     holder_start_ms: u64,
     explode_at_ms: u64,
     holder_rewards: vector<HolderReward>,
     settlement_consumed: bool,
     hub_ref: GameHubRef,
+    // Authority
+    server_authority: address,
+    round_start_ms: u64,
     // Config
     max_players: u64,
     reward_bps_per_sec: u64,
@@ -84,6 +92,14 @@ public struct GameState<phantom T> has key, store {
 }
 
 /// Events.
+public struct GameCreated has copy, drop, store {
+    game_id: object::ID,
+    creator: address,
+    name: String,
+    entry_fee: u64,
+    max_players: u64,
+}
+
 public struct RoundStarted has copy, drop, store {
     round_id: u64,
     bomb_holder: address,
@@ -100,6 +116,13 @@ public struct BombPassed has copy, drop, store {
     pool_value_after: u64,
 }
 
+public struct BombPassFailed has copy, drop, store {
+    round_id: u64,
+    holder: address,
+    reason: String,
+    now_ms: u64,
+}
+
 public struct Exploded has copy, drop, store {
     round_id: u64,
     dead_player: address,
@@ -113,17 +136,33 @@ public struct SettlementIntentReady has copy, drop, store {
     survivors_count: u64,
 }
 
+public struct PlayerExited has copy, drop, store {
+    round_id: u64,
+    player: address,
+    phase: GamePhase,
+}
+
+public struct GameReset has copy, drop, store {
+    game_id: object::ID,
+}
+
 /// Create game state bound to hub.
 public fun create_game_state<T>(
     hub_ref: GameHubRef,
+    server_authority: address,
+    name: String,
+    entry_fee: u64,
+    max_players: u64,
     ctx: &mut one::tx_context::TxContext,
 ): GameState<T> {
     GameState {
         id: object::new(ctx),
+        name,
         phase: GamePhase::Waiting,
         round_id: 0,
         players: vector::empty<Player>(),
         pool_value: 0,
+        entry_fee,
         entry_fee_per_player: 0,
         bomb_holder: option::none(),
         holder_start_ms: 0,
@@ -131,7 +170,9 @@ public fun create_game_state<T>(
         holder_rewards: vector::empty<HolderReward>(),
         settlement_consumed: false,
         hub_ref,
-        max_players: MAX_PLAYERS,
+        server_authority,
+        round_start_ms: 0,
+        max_players,
         reward_bps_per_sec: REWARD_BPS_PER_SEC,
         min_explode_delay_ms: MIN_EXPLODE_DELAY_MS,
         max_explode_delay_ms: MAX_EXPLODE_DELAY_MS,
@@ -141,10 +182,24 @@ public fun create_game_state<T>(
 /// Initialize and share a new game state (for testing/deployment).
 public entry fun initialize_game<T>(
     hub_id: address,
+    server_authority: address,
+    name: vector<u8>,
+    entry_fee: u64,
+    max_players: u64,
     ctx: &mut one::tx_context::TxContext,
 ) {
     let hub_ref = GameHubRef { id: object::id_from_address(hub_id) };
-    let game = create_game_state<T>(hub_ref, ctx);
+    let name_str = string::utf8(name);
+    let game = create_game_state<T>(hub_ref, server_authority, name_str, entry_fee, max_players, ctx);
+    
+    event::emit(GameCreated {
+        game_id: object::id(&game),
+        creator: one::tx_context::sender(ctx),
+        name: name_str,
+        entry_fee,
+        max_players,
+    });
+
     transfer::share_object(game);
 }
 
@@ -166,6 +221,44 @@ public entry fun join<T>(
     });
 }
 
+/// Leave the game.
+/// - In Waiting: Removes player from list.
+/// - In Playing: Marks player as dead (forfeit). If they held the bomb, it triggers an explosion.
+public entry fun leave<T>(
+    game: &mut GameState<T>,
+    clock: &Clock,
+    ctx: &mut one::tx_context::TxContext,
+) {
+    let sender = one::tx_context::sender(ctx);
+    let idx_opt = find_player_index(&game.players, sender);
+    assert!(option::is_some(&idx_opt), E_NOT_JOINED);
+    let idx = *option::borrow(&idx_opt);
+
+    if (is_waiting(&game.phase)) {
+        vector::remove(&mut game.players, idx);
+    } else if (is_playing(&game.phase)) {
+        let player = vector::borrow_mut(&mut game.players, idx);
+        if (player.alive) {
+            player.alive = false;
+            
+            // If the exiting player is the bomb holder, explode immediately.
+            let current_holder = *option::borrow(&game.bomb_holder);
+            if (sender == current_holder) {
+                // We force explosion at the current time.
+                // We manually update explode_at_ms so try_explode works immediately.
+                game.explode_at_ms = clock::timestamp_ms(clock);
+                perform_explosion(game, clock);
+            };
+        };
+    };
+
+    event::emit(PlayerExited {
+        round_id: game.round_id,
+        player: sender,
+        phase: game.phase,
+    });
+}
+
 /// Start round with pool value from room, random bomb holder + explode time.
 public entry fun start_round<T>(
     rng: &Random,
@@ -175,13 +268,13 @@ public entry fun start_round<T>(
     ctx: &mut one::tx_context::TxContext,
 ) {
     assert!(is_waiting(&game.phase), E_WRONG_PHASE);
-    assert!(vector::length(&game.players) > 0, E_NO_ALIVE_PLAYERS);
+    assert!(vector::length(&game.players) > 1, E_NOT_ENOUGH_PLAYERS);
     assert!(pool_value > 0, E_POOL_EMPTY);
     
     // Select random initial bomb holder.
     let initial_holder = select_random_player(rng, &game.players, ctx);
     
-    // Sample random explosion time.
+    // random explosion time.
     let now_ms = clock::timestamp_ms(clock);
     let delay_ms = sample_delay(rng, game.min_explode_delay_ms, game.max_explode_delay_ms, ctx);
     let explode_at_ms = now_ms + delay_ms;
@@ -197,6 +290,7 @@ public entry fun start_round<T>(
     game.bomb_holder = option::some(initial_holder);
     game.holder_start_ms = now_ms;
     game.explode_at_ms = explode_at_ms;
+    game.round_start_ms = now_ms;
     game.holder_rewards = vector::empty<HolderReward>();
     game.settlement_consumed = false;
     game.phase = GamePhase::Playing;
@@ -224,6 +318,15 @@ public entry fun pass_bomb<T>(
     
     let now_ms = clock::timestamp_ms(clock);
     
+    // Check for Max Hold Time Violation
+    if (now_ms > game.holder_start_ms && (now_ms - game.holder_start_ms > MAX_HOLD_TIME_MS)) {
+        // Player held too long! Force explosion immediately.
+        // We set explode_at_ms to now so try_explode works.
+        game.explode_at_ms = now_ms;
+        perform_explosion(game, clock);
+        return
+    };
+    
     // Calculate reward for current holder.
     let duration_ms = if (now_ms > game.holder_start_ms) {
         now_ms - game.holder_start_ms
@@ -247,6 +350,30 @@ public entry fun pass_bomb<T>(
     // Record reward.
     add_holder_reward(&mut game.holder_rewards, current_holder, reward);
     
+    // Sticky Hands Mechanic: If < 3s remaining, 50% chance to fail pass
+    let time_left = if (game.explode_at_ms > now_ms) {
+        game.explode_at_ms - now_ms
+    } else {
+        0
+    };
+
+    if (time_left < 3000) {
+        let mut generator = random::new_generator(rng, ctx);
+        // 0 or 1. If 0 (50%), fail the pass.
+        // Or generate_u8_in_range(0..99) < 50
+        if (random::generate_bool(&mut generator)) {
+             event::emit(BombPassFailed {
+                round_id: game.round_id,
+                holder: current_holder,
+                reason: string::utf8(b"Sticky Hands"),
+                now_ms,
+            });
+            // Update reward time only, but keep bomb
+            game.holder_start_ms = now_ms;
+            return
+        };
+    };
+
     // Select random next holder (excluding current holder).
     let next_holder = select_random_alive_player(rng, &game.players, current_holder, ctx);
     
@@ -264,22 +391,12 @@ public entry fun pass_bomb<T>(
     });
 }
 
-/// Permissionless explosion check (idempotent, only ends when time reached).
-public entry fun try_explode<T>(
+/// Helper to execute the actual explosion logic (payouts, phase change)
+fun perform_explosion<T>(
     game: &mut GameState<T>,
     clock: &Clock,
 ) {
-    // Already ended, no-op.
-    if (is_ended(&game.phase)) return;
-    
-    assert!(is_playing(&game.phase), E_WRONG_PHASE);
-    
     let now_ms = clock::timestamp_ms(clock);
-    
-    // Not yet time to explode, no-op.
-    if (now_ms < game.explode_at_ms) return;
-    
-    // Explosion time reached!
     let current_holder = *option::borrow(&game.bomb_holder);
     
     // Calculate final reward for holder before explosion.
@@ -315,6 +432,7 @@ public entry fun try_explode<T>(
     
     // End round.
     game.phase = GamePhase::Ended;
+    game.bomb_holder = option::none();
     
     event::emit(Exploded {
         round_id: game.round_id,
@@ -322,14 +440,51 @@ public entry fun try_explode<T>(
         now_ms,
         pool_value_after: game.pool_value,
     });
+}
+
+/// Attempt to explode the bomb based on probabilistic server check.
+public entry fun try_explode<T>(
+    game: &mut GameState<T>,
+    clock: &Clock,
+    rng: &Random,
+    ctx: &mut one::tx_context::TxContext,
+) {
+    // Only authorized server can call this
+    assert!(one::tx_context::sender(ctx) == game.server_authority, E_UNAUTHORIZED);
+
+    // Already ended, no-op.
+    if (is_ended(&game.phase)) return;
     
-    // Emit settlement ready event.
-    let survivor_count = count_survivors(&game.players);
-    event::emit(SettlementIntentReady {
-        round_id: game.round_id,
-        remaining_pool_value: game.pool_value,
-        survivors_count: survivor_count,
-    });
+    assert!(is_playing(&game.phase), E_WRONG_PHASE);
+    
+    let now_ms = clock::timestamp_ms(clock);
+    
+    // 1. Check if held too long (Anti-Camping) - Force explode if strict violation
+    if (now_ms > game.holder_start_ms && (now_ms - game.holder_start_ms > MAX_HOLD_TIME_MS)) {
+        perform_explosion(game, clock);
+        return
+    };
+
+    // 2. Probabilistic Explosion
+    let elapsed_ms = if (now_ms > game.round_start_ms) { now_ms - game.round_start_ms } else { 0 };
+    let elapsed_sec = elapsed_ms / 1000;
+
+    let probability_bps = if (elapsed_sec < 10) {
+        0 // 0-10s: Grace period
+    } else if (elapsed_sec < 30) {
+        500 // 10-30s: 5% chance
+    } else if (elapsed_sec < 60) {
+        2000 // 30-60s: 20% chance
+    } else {
+        10000 // 60s+: 100% chance
+    };
+
+    let mut generator = random::new_generator(rng, ctx);
+    let roll = random::generate_u64_in_range(&mut generator, 0, 10000); // 0-9999
+
+    if (roll < probability_bps) {
+        perform_explosion(game, clock);
+    }
 }
 
 /// Consume settlement intent (once per round, after Ended).
@@ -372,6 +527,42 @@ public fun consume_settlement_intent<T>(
         holder_rewards: game.holder_rewards,
         remaining_pool_value: game.pool_value,
     }
+}
+
+/// Prepare the game for the next round or allow dead players to rejoin.
+/// - Removes dead players from the list (they must rejoin/pay again).
+/// - Keeps survivors in the list (they stay for the next round).
+/// - Resets phase to Waiting so more players can join or round can restart.
+public entry fun reset_game<T>(
+    game: &mut GameState<T>,
+) {
+    assert!(is_ended(&game.phase), E_WRONG_PHASE);
+    assert!(game.settlement_consumed, E_SETTLEMENT_NOT_CONSUMED);
+
+    // Keep only alive players for the next round.
+    let mut survivors = vector::empty<Player>();
+    let len = vector::length(&game.players);
+    let mut i = 0;
+    while (i < len) {
+        let player = vector::borrow(&game.players, i);
+        if (player.alive) {
+            vector::push_back(&mut survivors, *player);
+        };
+        i = i + 1;
+    };
+    game.players = survivors;
+
+    game.phase = GamePhase::Waiting;
+    game.pool_value = 0;
+    game.bomb_holder = option::none();
+    game.holder_start_ms = 0;
+    game.explode_at_ms = 0;
+    game.holder_rewards = vector::empty();
+    game.settlement_consumed = false;
+    
+    event::emit(GameReset {
+        game_id: object::id(game),
+    });
 }
 
 /// Calculate reward for holder based on time held and entry fee.
@@ -563,10 +754,12 @@ public fun new_hub_ref_for_testing(id: object::ID): GameHubRef {
 public fun destroy_for_testing<T>(game: GameState<T>) {
     let GameState {
         id,
+        name: _,
         phase: _,
         round_id: _,
         players: _,
         pool_value: _,
+        entry_fee: _,
         entry_fee_per_player: _,
         bomb_holder: _,
         holder_start_ms: _,
@@ -574,6 +767,8 @@ public fun destroy_for_testing<T>(game: GameState<T>) {
         holder_rewards: _,
         settlement_consumed: _,
         hub_ref: _,
+        server_authority: _,
+        round_start_ms: _,
         max_players: _,
         reward_bps_per_sec: _,
         min_explode_delay_ms: _,

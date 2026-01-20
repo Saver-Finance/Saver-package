@@ -7,7 +7,7 @@ import { fromB64 } from '@onelabs/sui/utils';
 // Configuration
 // ============================================================================
 
-const PACKAGE_ID = "0xa421e6b6f0f8d5e3d9f1fbf955c8cc54486788cdb85d4c3c60f9f67d242b6e75";
+const PACKAGE_ID = "0x23f55e8a3b0b8935f5f7cff3f0ba8746e912973684c660ef11fc882b9b137003";
 const RPC_URL = 'https://rpc-testnet.onelabs.cc:443';
 
 // Coin type
@@ -38,6 +38,10 @@ console.log('Player 2:', player2Address);
 // Helper Functions
 // ============================================================================
 
+async function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function executeTransaction(
     signer: Ed25519Keypair,
     tx: Transaction,
@@ -45,22 +49,20 @@ async function executeTransaction(
 ) {
     console.log(`\n📤 ${description}...`);
 
-    // Explicitly set gas payment using the custom native token
     const address = signer.getPublicKey().toSuiAddress();
 
-    // 1. Find a candidate coin (if we haven't cached one, or just re-fetch to be safe)
+    // Refresh gas coins and explicitly pick one to avoid stale versions
     const coins = await client.getCoins({
         owner: address,
         coinType: COIN_TYPE
     });
 
     if (coins.data.length > 0) {
-        // Use the first available coin loop to find one with enough balance
-        const candidate = coins.data.find(c => BigInt(c.balance) > 10_000_000n);
+        // Try to find a candidate with enough balance
+        const candidate = coins.data.find(c => BigInt(c.balance) > 20_000_000n) || coins.data[0];
 
         if (candidate) {
-            // 2. Fetch the LATEST version of this coin object directly
-            // This bypasses indexer lag which causes "not available for consumption" errors
+            // Fetch the LATEST version from the full node to bypass indexer lag
             const coinData = await client.getObject({
                 id: candidate.coinObjectId
             });
@@ -75,6 +77,8 @@ async function executeTransaction(
         }
     }
 
+    tx.setGasBudget(100_000_000n);
+
     try {
         const result = await client.signAndExecuteTransaction({
             signer,
@@ -85,12 +89,10 @@ async function executeTransaction(
                 showObjectChanges: true,
             },
         });
-        // ... rest of function unchanged
 
         if (result.effects?.status.status === 'success') {
             console.log(`✅ Success! Digest: ${result.digest}`);
 
-            // Show events
             if (result.events && result.events.length > 0) {
                 console.log('📢 Events:');
                 result.events.forEach((event, i) => {
@@ -128,39 +130,73 @@ async function getGasCoin(address: string, amount: bigint = 1000000000n) {
 }
 
 // ============================================================================
-// Test Flow
+// Test Functions
 // ============================================================================
 
-async function runFullGameFlow() {
-    console.log('🎮 Starting Bomb Panic Integration Test\n');
+
+async function queryGameState(gameStateId: string) {
+    console.log(`\n🔍 Querying GameState: ${gameStateId}...`);
+
+    let retries = 5;
+    while (retries > 0) {
+        const object = await client.getObject({
+            id: gameStateId,
+            options: {
+                showContent: true,
+            },
+        });
+
+        if (object.data?.content?.dataType === 'moveObject') {
+            const fields = object.data.content.fields as any;
+            console.log('--- Room Details ---');
+            console.log(`Name: ${fields.name}`);
+            console.log(`Phase: ${JSON.stringify(fields.phase)}`);
+            console.log(`Entry Fee: ${fields.entry_fee}`);
+            console.log(`Max Players: ${fields.max_players}`);
+            console.log(`Current Players: ${fields.players.length}`);
+            console.log(`Pool Value: ${fields.pool_value}`);
+            console.log('--------------------');
+            return fields;
+        }
+
+        console.log(`  (Object not found yet, retrying in 1s... ${retries} left)`);
+        await sleep(1000);
+        retries--;
+    }
+
+    throw new Error('GameState object not found or invalid after several retries');
+}
+
+async function testCreateAndQueryRoom() {
+    console.log('🧪 Testing Create and Query Room\n');
     console.log('='.repeat(60));
 
-    // Check connection
-    const chainId = await client.getChainIdentifier();
-    console.log('🔗 Connected to chain:', chainId);
+    const gameStateId = await createRoom();
+    const fields = await queryGameState(gameStateId);
 
-    let gameStateId: string;
+    if (fields.name === 'Test Room' && fields.entry_fee === '1000') {
+        console.log('\n✅ Create and Query Room test passed!');
+    } else {
+        throw new Error('Query result does not match expected values');
+    }
 
-    // ========================================================================
-    // Step 1: Create and Share GameState
-    // ========================================================================
+    return gameStateId;
+}
 
-    console.log('\n📦 Step 1: Creating GameState object...');
+async function createRoom(): Promise<string> {
+    console.log('\n📦 Creating GameState object...');
 
     const createTx = new Transaction();
-
-    // Create a mock GameHubRef (using a dummy ID for testing)
-    // In production, this would be a real GameHub object
     const dummyHubId = '0x0000000000000000000000000000000000000000000000000000000000000000';
-
-    // Call create_game_state and share it
-    // Note: We need to add a helper entry function to your contract for this
-    // For now, we'll assume you've added an `initialize_game` entry function
 
     createTx.moveCall({
         target: `${PACKAGE_ID}::bomb_panic::initialize_game`,
         arguments: [
-            createTx.pure.address(dummyHubId), // hub_ref ID
+            createTx.pure.address(dummyHubId),
+            createTx.pure.address(player1Address), // server_authority
+            createTx.pure.vector('u8', Array.from(new TextEncoder().encode('Test Room'))),
+            createTx.pure.u64(1000),
+            createTx.pure.u64(4),
         ],
         typeArguments: [COIN_TYPE],
     });
@@ -171,7 +207,6 @@ async function runFullGameFlow() {
         'Creating GameState'
     );
 
-    // Extract the created GameState object ID
     const createdObjects = createResult.objectChanges?.filter(
         (change) => change.type === 'created'
     );
@@ -184,8 +219,21 @@ async function runFullGameFlow() {
         throw new Error('Failed to find created GameState object');
     }
 
-    gameStateId = gameStateObject.objectId;
-    console.log(`✅ GameState created: ${gameStateId}`);
+    return gameStateObject.objectId;
+}
+
+async function runFullGameFlow() {
+    console.log('🎮 Starting Bomb Panic Integration Test\n');
+    console.log('='.repeat(60));
+
+    // Check connection
+    const chainId = await client.getChainIdentifier();
+    console.log('🔗 Connected to chain:', chainId);
+
+    const gameStateId = await testCreateAndQueryRoom();
+
+    // Add leave test
+    await testLeaveWhileWaiting(gameStateId);
 
     // ========================================================================
     // Step 2: Players Join
@@ -202,6 +250,7 @@ async function runFullGameFlow() {
     });
 
     await executeTransaction(player1, join1Tx, 'Player 1 joining');
+    await sleep(1000);
 
     // Player 2 joins
     const join2Tx = new Transaction();
@@ -212,6 +261,7 @@ async function runFullGameFlow() {
     });
 
     await executeTransaction(player2, join2Tx, 'Player 2 joining');
+    await sleep(1000);
 
     // ========================================================================
     // Step 3: Start Round
@@ -239,6 +289,7 @@ async function runFullGameFlow() {
         startTx,
         'Starting round'
     );
+    await sleep(1000);
 
     // Extract bomb holder from RoundStarted event
     const roundStartedEvent = startResult.events?.find((e) =>
@@ -279,6 +330,7 @@ async function runFullGameFlow() {
         passTx,
         'Passing bomb'
     );
+    await sleep(1000);
 
     const bombPassedEvent = passResult.events?.find((e) =>
         e.type.includes('::bomb_panic::BombPassed')
@@ -305,6 +357,7 @@ async function runFullGameFlow() {
         arguments: [
             explodeTx.object(gameStateId),
             explodeTx.object('0x6'), // Clock
+            explodeTx.object('0x8'), // Random
         ],
         typeArguments: [COIN_TYPE],
     });
@@ -314,6 +367,7 @@ async function runFullGameFlow() {
         explodeTx,
         'Triggering explosion'
     );
+    await sleep(2000);
 
     const explodedEvent = explodeResult.events?.find((e) =>
         e.type.includes('::bomb_panic::Exploded')
@@ -346,9 +400,133 @@ async function runFullGameFlow() {
         settleTx,
         'Consuming settlement intent'
     );
+    await sleep(1000);
+
+    // ========================================================================
+    // Step 7: Reset Game (to play again)
+    // ========================================================================
+
+    console.log('\n🔄 Step 7: Resetting game state for next round...');
+
+    const resetTx = new Transaction();
+    resetTx.moveCall({
+        target: `${PACKAGE_ID}::bomb_panic::reset_game`,
+        arguments: [resetTx.object(gameStateId)],
+        typeArguments: [COIN_TYPE],
+    });
+
+    await executeTransaction(player1, resetTx, 'Resetting game');
+
+    // Verify room is back to Waiting phase and survivor stays
+    let middleFields;
+    let resetRetries = 5;
+    while (resetRetries > 0) {
+        middleFields = await queryGameState(gameStateId);
+
+        if ((middleFields.phase as any).variant === 'Waiting' && middleFields.players.length === 1) {
+            console.log('\n✅ Reset Game test passed! Survivor (Player 2) is still in the room.');
+            break;
+        }
+
+        console.log(`  (Waiting for reset to reflect... ${resetRetries} left)`);
+        console.log(`  Current State -> Phase: ${(middleFields.phase as any).variant}, Players: ${middleFields.players.length}`);
+        await sleep(1000);
+        resetRetries--;
+    }
+
+    if (!middleFields || (middleFields.phase as any).variant !== 'Waiting' || middleFields.players.length !== 1) {
+        throw new Error(`Game reset failed: expected 1 survivor, got ${middleFields?.players.length} (Phase: ${(middleFields?.phase as any)?.variant})`);
+    }
+
+    // ========================================================================
+    // Step 8: Dead Player Rejoins and Round 2 Starts
+    // ========================================================================
+
+    console.log('\n🔄 Step 8: Dead player (Player 1) rejoining...');
+
+    const rejoinTx = new Transaction();
+    rejoinTx.moveCall({
+        target: `${PACKAGE_ID}::bomb_panic::join`,
+        arguments: [rejoinTx.object(gameStateId)],
+        typeArguments: [COIN_TYPE],
+    });
+
+    await executeTransaction(player1, rejoinTx, 'Player 1 rejoining');
+
+    // Retry check for rejoining player
+    let fieldsWithJoin;
+    let retries = 5;
+    while (retries > 0) {
+        fieldsWithJoin = await queryGameState(gameStateId);
+        console.log(`Players in room: ${fieldsWithJoin.players.length}`);
+
+        if (fieldsWithJoin.players.length === 2) {
+            console.log('✅ Rejoin successful!');
+            break;
+        }
+
+        console.log(`  (Waiting for rejoin to reflect... ${retries} left)`);
+        await sleep(1000);
+        retries--;
+    }
+
+    if (!fieldsWithJoin || fieldsWithJoin.players.length !== 2) {
+        throw new Error('Rejoin failed');
+    }
+
+    console.log('\n🚀 Starting Round 2...');
+    const start2Tx = new Transaction();
+    start2Tx.moveCall({
+        target: `${PACKAGE_ID}::bomb_panic::start_round`,
+        arguments: [
+            start2Tx.object('0x8'),
+            start2Tx.object(gameStateId),
+            start2Tx.object('0x6'),
+            start2Tx.pure.u64(1000000n),
+        ],
+        typeArguments: [COIN_TYPE],
+    });
+
+    await executeTransaction(player1, start2Tx, 'Starting Round 2');
 
     console.log('\n' + '='.repeat(60));
-    console.log('🎉 Full game flow completed successfully!');
+    console.log('🎉 Full "Play Again" cycle completed successfully!');
+}
+
+async function testLeaveWhileWaiting(gameStateId: string) {
+    console.log('\n👥 Testing leave function (Waiting phase)...');
+
+    // Player 2 joins
+    const joinTx = new Transaction();
+    joinTx.moveCall({
+        target: `${PACKAGE_ID}::bomb_panic::join`,
+        arguments: [joinTx.object(gameStateId)],
+        typeArguments: [COIN_TYPE],
+    });
+    await executeTransaction(player2, joinTx, 'Player 2 joining to leave');
+    await sleep(2000);
+
+    let fields = await queryGameState(gameStateId);
+    console.log(`Players before leave: ${fields.players.length}`);
+
+    // Player 2 leaves
+    const leaveTx = new Transaction();
+    leaveTx.moveCall({
+        target: `${PACKAGE_ID}::bomb_panic::leave`,
+        arguments: [leaveTx.object(gameStateId), leaveTx.object('0x6')],
+        typeArguments: [COIN_TYPE],
+    });
+    await executeTransaction(player2, leaveTx, 'Player 2 leaving');
+    await sleep(2000);
+
+    fields = await queryGameState(gameStateId);
+    console.log(`Players after leave: ${fields.players.length}`);
+
+    if (fields.players.length === 0) {
+        console.log('✅ Leave test passed!');
+    } else {
+        throw new Error('Leave test failed: player still in list');
+    }
 }
 
 // ============================================================================
