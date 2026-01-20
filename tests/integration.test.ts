@@ -2,13 +2,14 @@ import { SuiClient } from '@onelabs/sui/client';
 import { Ed25519Keypair } from '@onelabs/sui/keypairs/ed25519';
 import { Transaction } from '@onelabs/sui/transactions';
 import { fromB64 } from '@onelabs/sui/utils';
-
+import dotenv from 'dotenv';
+dotenv.config();
 // ============================================================================
 // Configuration
 // ============================================================================
 
-const PACKAGE_ID = "0x23f55e8a3b0b8935f5f7cff3f0ba8746e912973684c660ef11fc882b9b137003";
-const RPC_URL = 'https://rpc-testnet.onelabs.cc:443';
+const PACKAGE_ID = process.env.PACKAGE_ID;
+const RPC_URL = process.env.RPC_URL;
 
 // Coin type
 const COIN_TYPE = '0x2::oct::OCT';
@@ -17,16 +18,10 @@ const COIN_TYPE = '0x2::oct::OCT';
 // Test Setup
 // ============================================================================
 
-const client = new SuiClient({ url: RPC_URL });
+const client = new SuiClient({ url: RPC_URL! });
 
-// Create test keypairs (in production, load from keystore)
-// You can use your actual mnemonic or private key
-const player1 = Ed25519Keypair.deriveKeypair(
-    "REDACTED_MNEMONIC_3"
-);
-const player2 = Ed25519Keypair.deriveKeypair(
-    "REDACTED_MNEMONIC_2"
-);
+const player1 = Ed25519Keypair.fromSecretKey(process.env.USER_1!);
+const player2 = Ed25519Keypair.fromSecretKey(process.env.USER_2!);
 
 const player1Address = player1.getPublicKey().toSuiAddress();
 const player2Address = player2.getPublicKey().toSuiAddress();
@@ -193,7 +188,6 @@ async function createRoom(): Promise<string> {
         target: `${PACKAGE_ID}::bomb_panic::initialize_game`,
         arguments: [
             createTx.pure.address(dummyHubId),
-            createTx.pure.address(player1Address), // server_authority
             createTx.pure.vector('u8', Array.from(new TextEncoder().encode('Test Room'))),
             createTx.pure.u64(1000),
             createTx.pure.u64(4),
@@ -278,6 +272,7 @@ async function runFullGameFlow() {
         arguments: [
             startTx.object('0x8'), // Random object (shared)
             startTx.object(gameStateId),
+            startTx.pure.address('0x1234'), // room_id (dummy for non-GameHub test)
             startTx.object('0x6'), // Clock object (shared)
             startTx.pure.u64(poolValue),
         ],
@@ -297,10 +292,9 @@ async function runFullGameFlow() {
     );
 
     let currentHolder = (roundStartedEvent?.parsedJson as any)?.bomb_holder as string;
-    let explodeAtMs = (roundStartedEvent?.parsedJson as any)?.explode_at_ms as string;
 
     console.log(`💣 Initial bomb holder: ${currentHolder}`);
-    console.log(`⏰ Explosion time: ${explodeAtMs} ms`);
+    console.log(`🎲 Using pure probabilistic explosion system`);
 
     // ========================================================================
     // Step 4: Pass Bomb
@@ -340,38 +334,57 @@ async function runFullGameFlow() {
     console.log(`💣 New bomb holder: ${currentHolder}`);
 
     // ========================================================================
-    // Step 5: Wait and Trigger Explosion
+    // Step 5: Wait and Trigger Explosion (Probabilistic System)
     // ========================================================================
 
-    console.log('\n💥 Step 5: Waiting for explosion time...');
+    console.log('\n💥 Step 5: Triggering probabilistic explosion...');
 
-    const now = Date.now();
-    const waitTime = Math.max(0, Number(explodeAtMs) - now + 1000);
+    // Wait 15 seconds to enter the 5% probability zone (10-30s)
+    const waitTime = 15000;
 
-    console.log(`⏳ Waiting ${waitTime}ms for explosion...`);
+    console.log(`⏳ Waiting ${waitTime}ms to enter explosion probability zone...`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
 
-    const explodeTx = new Transaction();
-    explodeTx.moveCall({
-        target: `${PACKAGE_ID}::bomb_panic::try_explode`,
-        arguments: [
-            explodeTx.object(gameStateId),
-            explodeTx.object('0x6'), // Clock
-            explodeTx.object('0x8'), // Random
-        ],
-        typeArguments: [COIN_TYPE],
-    });
+    // Keep trying until bomb explodes (probabilistic system)
+    console.log('💣 Attempting to trigger explosion (probabilistic)...');
+    let explodedEvent: any = null;
+    let attempts = 0;
+    const maxAttempts = 100;
 
-    const explodeResult = await executeTransaction(
-        player1, // Anyone can call this (permissionless)
-        explodeTx,
-        'Triggering explosion'
-    );
-    await sleep(2000);
+    while (attempts < maxAttempts && !explodedEvent) {
+        const explodeTx = new Transaction();
+        explodeTx.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::try_explode`,
+            arguments: [
+                explodeTx.object(gameStateId),
+                explodeTx.object('0x6'), // Clock
+                explodeTx.object('0x8'), // Random
+            ],
+            typeArguments: [COIN_TYPE],
+        });
 
-    const explodedEvent = explodeResult.events?.find((e) =>
-        e.type.includes('::bomb_panic::Exploded')
-    );
+        const explodeResult = await executeTransaction(
+            player1,
+            explodeTx,
+            `Try explode attempt ${attempts + 1}`
+        );
+
+        explodedEvent = explodeResult.events?.find((e) =>
+            e.type.includes('::bomb_panic::Exploded')
+        );
+
+        if (explodedEvent) {
+            console.log(`💥 Bomb exploded after ${attempts + 1} attempts!`);
+            break;
+        }
+
+        attempts++;
+        await sleep(500); // Small delay between attempts
+    }
+
+    if (!explodedEvent) {
+        throw new Error(`Failed to explode after ${maxAttempts} attempts`);
+    }
 
     console.log(`💀 Dead player: ${(explodedEvent?.parsedJson as any)?.dead_player}`);
 
@@ -424,7 +437,8 @@ async function runFullGameFlow() {
         middleFields = await queryGameState(gameStateId);
 
         if ((middleFields.phase as any).variant === 'Waiting' && middleFields.players.length === 1) {
-            console.log('\n✅ Reset Game test passed! Survivor (Player 2) is still in the room.');
+            const survivor = middleFields.players[0].fields.addr;
+            console.log(`\n✅ Reset Game test passed! Survivor (${survivor}) is still in the room.`);
             break;
         }
 
@@ -442,7 +456,12 @@ async function runFullGameFlow() {
     // Step 8: Dead Player Rejoins and Round 2 Starts
     // ========================================================================
 
-    console.log('\n🔄 Step 8: Dead player (Player 1) rejoining...');
+    const survivorAddr = middleFields.players[0].fields.addr;
+    const player1Addr = player1.getPublicKey().toSuiAddress();
+    const deadPlayer = survivorAddr === player1Addr ? player2 : player1;
+    const deadPlayerName = survivorAddr === player1Addr ? "Player 2" : "Player 1";
+
+    console.log(`\n🔄 Step 8: Dead player (${deadPlayerName}) rejoining...`);
 
     const rejoinTx = new Transaction();
     rejoinTx.moveCall({
@@ -451,7 +470,7 @@ async function runFullGameFlow() {
         typeArguments: [COIN_TYPE],
     });
 
-    await executeTransaction(player1, rejoinTx, 'Player 1 rejoining');
+    await executeTransaction(deadPlayer, rejoinTx, `${deadPlayerName} rejoining`);
 
     // Retry check for rejoining player
     let fieldsWithJoin;
@@ -481,6 +500,7 @@ async function runFullGameFlow() {
         arguments: [
             start2Tx.object('0x8'),
             start2Tx.object(gameStateId),
+            start2Tx.pure.address('0x1234'), // room_id (dummy)
             start2Tx.object('0x6'),
             start2Tx.pure.u64(1000000n),
         ],

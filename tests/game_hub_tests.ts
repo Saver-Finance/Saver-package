@@ -2,28 +2,24 @@ import { SuiClient } from '@onelabs/sui/client';
 import { Ed25519Keypair } from '@onelabs/sui/keypairs/ed25519';
 import { Transaction } from '@onelabs/sui/transactions';
 import { fromB64 } from '@onelabs/sui/utils';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const PACKAGE_ID = '0x6ffd8ab53a9b16ebda3f800b9cde5d95866f08a92349ac42ba605523f2950cb0'; 
-const ADMIN_CAP_ID = `0xf13cf85a4c8948d1463d5b6ab3b95c3626d948eee2ddcc8477b84d10857194d3`; 
-const REGISTRY_ID = `0xf24a94ad4ec519858c675a0f0479aaa29868d72b7caee21a90a366787d4a52b8`; 
-const CONFIG_ID = `0x8af6ea53c7e93bb3db8aa2d850125c06cf03c2b097fbb9e5245de2acbd0f9f32`; 
+const PACKAGE_ID = '0x6ffd8ab53a9b16ebda3f800b9cde5d95866f08a92349ac42ba605523f2950cb0';
+const ADMIN_CAP_ID = `0xf13cf85a4c8948d1463d5b6ab3b95c3626d948eee2ddcc8477b84d10857194d3`;
+const REGISTRY_ID = `0xf24a94ad4ec519858c675a0f0479aaa29868d72b7caee21a90a366787d4a52b8`;
+const CONFIG_ID = `0x8af6ea53c7e93bb3db8aa2d850125c06cf03c2b097fbb9e5245de2acbd0f9f32`;
 const GAME_TYPE = `${PACKAGE_ID}::gamehub::GameInfo`;
 
 const RPC_URL = 'https://rpc-testnet.onelabs.cc:443';
-const COIN_TYPE = '0x2::oct::OCT'; 
+const COIN_TYPE = '0x2::oct::OCT';
 
 const client = new SuiClient({ url: RPC_URL });
 
-const adminKeypair = Ed25519Keypair.fromSecretKey(
-    "REDACTED_MNEMONIC_3"
-);
+const adminKeypair = Ed25519Keypair.fromSecretKey(process.env.ADMIN!);
 
-const player1Keypair = Ed25519Keypair.deriveKeypair(
-    "REDACTED_MNEMONIC_3"
-);
-const player2Keypair = Ed25519Keypair.deriveKeypair(
-    "REDACTED_MNEMONIC_2"
-);
+const player1Keypair = Ed25519Keypair.fromSecretKey(process.env.USER_1!);
+const player2Keypair = Ed25519Keypair.fromSecretKey(process.env.USER_2!);
 
 
 const adminAddr = adminKeypair.toSuiAddress();
@@ -96,7 +92,7 @@ async function runGameHubFlow() {
             arguments: [
                 tx.object(CONFIG_ID),
                 tx.object(ADMIN_CAP_ID),
-                tx.pure.u64(100), 
+                tx.pure.u64(100),
                 tx.pure.address(adminAddr),
             ],
         });
@@ -114,7 +110,7 @@ async function runGameHubFlow() {
 
     {
         const tx = new Transaction();
-        const ENTRY_FEE = 1_000_000_000n; 
+        const ENTRY_FEE = 1_000_000_000n;
 
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::create_room`,
@@ -127,11 +123,11 @@ async function runGameHubFlow() {
         });
 
         const result = await executeTransaction(adminKeypair, tx, "2. Admin Create Room");
-        
+
         const createdObjects = result.objectChanges?.filter((c: any) => c.type === 'created') as any[];
         const roomObj = createdObjects.find(o => o.objectType.includes("::Room"));
         if (!roomObj) throw new Error("Room Object not found");
-        
+
         createdRoomId = roomObj.objectId;
         console.log("Room ID:", createdRoomId);
     }
@@ -139,7 +135,7 @@ async function runGameHubFlow() {
     {
         const tx = new Transaction();
         const ENTRY_FEE = 1_000_000_000n;
-        
+
         const [feeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(ENTRY_FEE)]);
 
         tx.moveCall({
@@ -153,17 +149,17 @@ async function runGameHubFlow() {
 
     {
         try {
-             const tx = new Transaction();
-             const ENTRY_FEE = 1_000_000_000n;
-             const [feeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(ENTRY_FEE)]);
-     
-             tx.moveCall({
-                 target: `${PACKAGE_ID}::gamehub::join_room`,
-                 typeArguments: [COIN_TYPE],
-                 arguments: [tx.object(createdRoomId), feeCoin],
-             });
-     
-             await executeTransaction(player2Keypair, tx, "4. Player 2 Join Room");
+            const tx = new Transaction();
+            const ENTRY_FEE = 1_000_000_000n;
+            const [feeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(ENTRY_FEE)]);
+
+            tx.moveCall({
+                target: `${PACKAGE_ID}::gamehub::join_room`,
+                typeArguments: [COIN_TYPE],
+                arguments: [tx.object(createdRoomId), feeCoin],
+            });
+
+            await executeTransaction(player2Keypair, tx, "4. Player 2 Join Room");
         } catch (e) {
             console.warn(" Player 2 not found");
         }
@@ -183,7 +179,7 @@ async function runGameHubFlow() {
     {
         const tx = new Transaction();
         const payoutAddr = [p1Addr, p2Addr];
-        const payoutAmount = [2_000_000_000n, 0n]; 
+        const payoutAmount = [2_000_000_000n, 0n];
 
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::settle`,

@@ -20,6 +20,12 @@ const EPlayerNotFound: u64 = 6;
 const ERoomNotSettled: u64 = 7;
 const ENothingToClaim: u64 = 8;
 const EInsufficientPoolBalance: u64 = 9;
+const EUnauthorizedGame: u64 = 10;
+const EAlreadyReady: u64 = 11;
+const ENotReady: u64 = 12;
+const ENotAllPlayersReady: u64 = 13;
+const EAlreadyJoined: u64 = 14;
+const EInvalidCreationFee: u64 = 15;
 
 public enum Status has store, copy, drop {
     Waiting,
@@ -32,6 +38,11 @@ public struct AdminCap has key {
     id: UID
 }
 
+public struct GameCap has key, store {
+    id: UID,
+    game_type: TypeName,
+}
+
 public struct GameRegistry has key {
     id: UID,
     registered_games: Table<TypeName, GameInfo>
@@ -41,15 +52,12 @@ public struct GameInfo has store, copy, drop {
     game_name: String,
 }
 
-public struct Payout has copy, drop {
-    address: address,
-    amount: u64,
-}
 
 public struct Config has key {
     id: UID,
     fee_rate: u64,
     insurance_pool: address,
+    room_creation_fee: u64,
 }
 
 public struct Room<phantom T> has key {
@@ -58,11 +66,10 @@ public struct Room<phantom T> has key {
     creator: address,
     entry_fee: u64,
     max_players: u8,
-
     player_balances: Table<address, u64>,
     pool: Balance<T>,
-
-    status: Status
+    status: Status,
+    ready_players: Table<address, bool>,
 }
 
 fun init(
@@ -78,6 +85,7 @@ fun init(
         id: object::new(ctx),
         fee_rate: 0,
         insurance_pool: ctx.sender(),
+        room_creation_fee: 0,
     };
     transfer::share_object(config);
 
@@ -93,8 +101,10 @@ public fun is_game_registered(registry: &GameRegistry, game_type: TypeName): boo
 
 public fun register_game<G>(
     registry: &mut GameRegistry,
+    _: &AdminCap,
     game_name: vector<u8>,
-) {
+    ctx: &mut TxContext,
+): GameCap {
     let game_type = type_name::with_defining_ids<G>();
     
     assert!(!is_game_registered(registry, game_type), EGameAlreadyRegistered);
@@ -104,17 +114,33 @@ public fun register_game<G>(
     };
     
     table::add(&mut registry.registered_games, game_type, info);
+    
+    // Return GameCap for this game
+    GameCap {
+        id: object::new(ctx),
+        game_type,
+    }
 }
 
 public fun create_room_internal<T, G>(
     registry: &GameRegistry,
+    config: &Config,
     entry_fee: u64,
     max_players: u8,
+    creation_fee: Coin<T>,
     ctx: &mut TxContext
 ) {
     let game_type = type_name::with_defining_ids<G>();
     
     assert!(is_game_registered(registry, game_type), EGameNotRegistered);
+    
+    // Validate and transfer creation fee to insurance pool
+    if (config.room_creation_fee > 0) {
+        assert!(coin::value(&creation_fee) >= config.room_creation_fee, EInvalidCreationFee);
+    };
+    
+    // Transfer creation fee to insurance pool (even if 0)
+    transfer::public_transfer(creation_fee, config.insurance_pool);
     
     let room = Room<T> {
         id: object::new(ctx),
@@ -124,63 +150,154 @@ public fun create_room_internal<T, G>(
         max_players,
         player_balances: table::new(ctx),
         pool: balance::zero<T>(),
-        status: Status::Waiting
+        status: Status::Waiting,
+        ready_players: table::new(ctx),
     };
     transfer::share_object(room);
 }
 
+/// Join room without paying entry fee (just add to player list)
 public fun join_room_internal<T>(
     room: &mut Room<T>,
-    coin: Coin<T>,
     ctx: &TxContext
 ) {
     assert!(room.status == Status::Waiting, ERoomNotWaiting);
     assert!(room.player_balances.length() as u8 < room.max_players, EFullPlayerInRoom);
-    assert!(coin::value(&coin) == room.entry_fee, EInvalidEntryFee);
 
     let user = ctx.sender();
-    room.player_balances.add(user, coin.value());
+    
+    // Check not already joined
+    assert!(!table::contains(&room.player_balances, user), EAlreadyJoined);
+    
+    // Add player with 0 balance (not ready yet)
+    table::add(&mut room.player_balances, user, 0);
+    table::add(&mut room.ready_players, user, false);
+}
 
+/// Signal ready and commit entry fee (escrow)
+public fun ready_to_play_internal<T>(
+    room: &mut Room<T>,
+    coin: Coin<T>,
+    ctx: &TxContext
+) {
+    let user = ctx.sender();
+    
+    assert!(room.status == Status::Waiting, ERoomNotWaiting);
+    assert!(table::contains(&room.player_balances, user), EPlayerNotFound);
+    assert!(coin::value(&coin) == room.entry_fee, EInvalidEntryFee);
+    assert!(!*table::borrow(&room.ready_players, user), EAlreadyReady);
+    
+    // Mark as ready
+    *table::borrow_mut(&mut room.ready_players, user) = true;
+    
+    // Update balance to entry fee
+    *table::borrow_mut(&mut room.player_balances, user) = coin::value(&coin);
+    
+    // Add to pool (ESCROW)
     room.pool.join(coin::into_balance(coin));
+}
+
+/// Cancel ready and get refund
+public fun cancel_ready_internal<T>(
+    room: &mut Room<T>,
+    ctx: &mut TxContext
+): Coin<T> {
+    let user = ctx.sender();
+    
+    assert!(room.status == Status::Waiting, ERoomNotWaiting);
+    assert!(table::contains(&room.ready_players, user), EPlayerNotFound);
+    assert!(*table::borrow(&room.ready_players, user), ENotReady);
+    
+    // Unmark ready
+    *table::borrow_mut(&mut room.ready_players, user) = false;
+    
+    // Get entry fee amount
+    let amount = *table::borrow(&room.player_balances, user);
+    assert!(amount > 0, ENothingToClaim);
+    
+    // Reset balance to 0
+    *table::borrow_mut(&mut room.player_balances, user) = 0;
+    
+    // Refund from pool
+    coin::from_balance(
+        balance::split(&mut room.pool, amount),
+        ctx
+    )
+}
+
+/// Check if all players in room are ready
+fun all_players_ready<T>(room: &Room<T>): bool {
+    let player_count = table::length(&room.player_balances);
+    
+    // Check if pool equals expected total (entry_fee * player_count)
+    // This works because pool = sum of all ready player entry fees
+    let expected_pool = room.entry_fee * player_count;
+    let actual_pool = balance::value(&room.pool);
+    
+    actual_pool == expected_pool
 }
 
 public fun start_room_internal<T> (
     room: &mut Room<T>,
     _: &AdminCap,
+    config: &Config,
+    ctx: &mut TxContext,
 ) {
     assert!(room.status == Status::Waiting || room.status == Status::Settled, ERoomCanNotStart);
+    assert!(room.player_balances.length() >= 2, ERoomCanNotStart);
+    
+    // Check all players are ready
+    assert!(all_players_ready(room), ENotAllPlayersReady);
+    
+    // Calculate and transfer insurance fee from pool
+    let total_pool = balance::value(&room.pool);
+    let insurance_fee = (total_pool * config.fee_rate) / FEE_RATE_DENOMINATOR;
+    
+    if (insurance_fee > 0) {
+        let fee_coin = coin::from_balance(
+            balance::split(&mut room.pool, insurance_fee),
+            ctx
+        );
+        transfer::public_transfer(fee_coin, config.insurance_pool);
+    };
+    
     room.status = Status::Started;
 }   
 
+/// Settle game results - no fee calculation, just update balances
 public fun settle_internal<T>(
     room: &mut Room<T>,
-    payouts: vector<Payout>,
-    _: &AdminCap,
+    addresses: vector<address>,
+    amounts: vector<u64>,
+    game_cap: &GameCap,
+    _ctx: &mut TxContext,
 ) {
     assert!(room.status == Status::Started, ERoomCanNotStart);
-
+    assert!(room.game_type == game_cap.game_type, EUnauthorizedGame);
+    
+    let payouts_len = vector::length(&addresses);
+    assert!(payouts_len == vector::length(&amounts), EInvalidEntryFee);
+    
+    // Simply update balances with exact amounts (no fee calculation)
     let mut i = 0;
-    while (i < vector::length(&payouts)) {
-        let payout = vector::borrow(&payouts, i);
-
-        assert!(
-            table::contains(&room.player_balances, payout.address),
-            EPlayerNotFound
-        );
-
-        let balance_ref =
-            table::borrow_mut(&mut room.player_balances, payout.address);
-
-        *balance_ref = payout.amount;
-
+    while (i < payouts_len) {
+        let addr = *vector::borrow(&addresses, i);
+        let amount = *vector::borrow(&amounts, i);
+        
+        if (!table::contains(&room.player_balances, addr)) {
+            table::add(&mut room.player_balances, addr, amount);
+        } else {
+            let balance_ref = table::borrow_mut(&mut room.player_balances, addr);
+            *balance_ref = amount;
+        };
+        
         i = i + 1;
     };
-
+    
     room.status = Status::Settled;
 }
 
 public fun claim_internal<T>(
-    config: &Config,
     room: &mut Room<T>,
     ctx: &mut TxContext,
 ): Coin<T> {
@@ -197,23 +314,31 @@ public fun claim_internal<T>(
     let pool_balance = balance::value(&room.pool);
 
     assert!(*amount > 0, ENothingToClaim);
-
     assert!(*amount <= pool_balance, EInsufficientPoolBalance);
-
-    let fee_amount = (*amount * config.fee_rate) / FEE_RATE_DENOMINATOR;
-    let claim_amount = *amount - fee_amount;
+    
+    let claim_amount = *amount;
     *amount = 0u64;
     
-    let fee_coin = coin::from_balance(
-        balance::split(&mut room.pool, fee_amount),
-        ctx
-    );
-    transfer::public_transfer(fee_coin, config.insurance_pool);
-    
+    // Return full balance (fees already deducted at start)
     coin::from_balance(
         balance::split(&mut room.pool, claim_amount),
         ctx
     )
+}
+
+/// Get the current pool value for a room
+public fun get_pool_value<T>(room: &Room<T>): u64 {
+    balance::value(&room.pool)
+}
+
+/// Get room entry fee
+public fun get_entry_fee<T>(room: &Room<T>): u64 {
+    room.entry_fee
+}
+
+/// Get number of players in room
+public fun get_player_count<T>(room: &Room<T>): u64 {
+    table::length(&room.player_balances)
 }
 
 entry fun update_config(
@@ -221,68 +346,81 @@ entry fun update_config(
     _: &AdminCap,
     fee_rate: u64,
     insurance_pool: address,
+    room_creation_fee: u64,
 ) {
     config.fee_rate = fee_rate;
     config.insurance_pool = insurance_pool;
+    config.room_creation_fee = room_creation_fee;
 }
 
 entry fun create_room<T, G>(
     registry: &GameRegistry,
+    config: &Config,
     entry_fee: u64,
     max_players: u8,
+    creation_fee: Coin<T>,
     ctx: &mut TxContext
 ) {
-    create_room_internal<T, G>(registry, entry_fee, max_players, ctx);
+    create_room_internal<T, G>(registry, config, entry_fee, max_players, creation_fee, ctx);
 }
 
 entry fun join_room<T>(
     room: &mut Room<T>,
+    ctx: &TxContext
+) {
+    join_room_internal(room, ctx);
+}
+
+entry fun ready_to_play<T>(
+    room: &mut Room<T>,
     coin: Coin<T>,
     ctx: &TxContext
 ) {
-    join_room_internal(room, coin, ctx);
+    ready_to_play_internal(room, coin, ctx);
+}
+
+entry fun cancel_ready<T>(
+    room: &mut Room<T>,
+    ctx: &mut TxContext
+) {
+    let coin = cancel_ready_internal(room, ctx);
+    transfer::public_transfer(coin, tx_context::sender(ctx));
 }
 
 entry fun start_room<T>(
     room: &mut Room<T>,
     admin_cap: &AdminCap,
+    config: &Config,
+    ctx: &mut TxContext,
 ) {
-    start_room_internal(room, admin_cap);
+    start_room_internal(room, admin_cap, config, ctx);
 }
 
 entry fun settle<T>(
     room: &mut Room<T>,
     addresses: vector<address>,
     amounts: vector<u64>,
-    _: &AdminCap,
+    game_cap: &GameCap,
+    ctx: &mut TxContext,
 ) {
-    let payouts_len = vector::length(&addresses);
-    assert!(payouts_len == vector::length(&amounts), EInvalidEntryFee);
-    
-    let mut payouts = vector::empty<Payout>();
-    let mut i = 0;
-    while (i < payouts_len) {
-        vector::push_back(&mut payouts, Payout {
-            address: *vector::borrow(&addresses, i),
-            amount: *vector::borrow(&amounts, i),
-        });
-        i = i + 1;
-    };
-    
-    settle_internal(room, payouts, _);
+    settle_internal(room, addresses, amounts, game_cap, ctx);
 }
 
 
 entry fun claim<T>(
-    config: &Config,
     room: &mut Room<T>,
     ctx: &mut TxContext,
 ) {
-    let coin = claim_internal(config, room, ctx);
+    let coin = claim_internal(room, ctx);
     transfer::public_transfer(coin, tx_context::sender(ctx));
 }
 
 #[test_only]
 public fun init_for_testing(ctx: &mut TxContext) {
     init(ctx);
+}
+
+#[test_only]
+public fun get_room_creation_fee(config: &Config): u64 {
+    config.room_creation_fee
 }

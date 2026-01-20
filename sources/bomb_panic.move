@@ -11,12 +11,10 @@ const BPS_DENOM: u64 = 10_000;
 // Holder earns basis points per second from their entry fee.
 /// 100 bps/sec = 1%/sec => 10 sec = 10% of entry fee (1.1x concept).
 const REWARD_BPS_PER_SEC: u64 = 100;
-/// Min delay before explosion (ms).
-const MIN_EXPLODE_DELAY_MS: u64 = 5_000;
-/// Max delay before explosion (ms).
-const MAX_EXPLODE_DELAY_MS: u64 = 30_000;
 /// Max time a single player can hold the bomb (anti-camping).
 const MAX_HOLD_TIME_MS: u64 = 10_000;
+/// Sticky hands threshold - after this many ms, passing becomes risky
+const STICKY_HANDS_THRESHOLD_MS: u64 = 30_000;
 
 /// Error codes.
 const E_WRONG_PHASE: u64 = 1;
@@ -29,7 +27,6 @@ const E_POOL_EMPTY: u64 = 8;
 const E_NOT_JOINED: u64 = 9;
 const E_SETTLEMENT_NOT_CONSUMED: u64 = 10;
 const E_NOT_ENOUGH_PLAYERS: u64 = 11;
-const E_UNAUTHORIZED: u64 = 12;
 
 /// Phase enum for round lifecycle.
 public enum GamePhase has copy, drop, store {
@@ -77,18 +74,14 @@ public struct GameState<phantom T> has key, store {
     entry_fee_per_player: u64, // Actual fee calculated at start_round (usually equals entry_fee)
     bomb_holder: option::Option<address>,
     holder_start_ms: u64,
-    explode_at_ms: u64,
     holder_rewards: vector<HolderReward>,
     settlement_consumed: bool,
     hub_ref: GameHubRef,
-    // Authority
-    server_authority: address,
+    current_room_id: option::Option<object::ID>,
     round_start_ms: u64,
     // Config
     max_players: u64,
     reward_bps_per_sec: u64,
-    min_explode_delay_ms: u64,
-    max_explode_delay_ms: u64,
 }
 
 /// Events.
@@ -103,7 +96,6 @@ public struct GameCreated has copy, drop, store {
 public struct RoundStarted has copy, drop, store {
     round_id: u64,
     bomb_holder: address,
-    explode_at_ms: u64,
     pool_value: u64,
 }
 
@@ -130,12 +122,6 @@ public struct Exploded has copy, drop, store {
     pool_value_after: u64,
 }
 
-public struct SettlementIntentReady has copy, drop, store {
-    round_id: u64,
-    remaining_pool_value: u64,
-    survivors_count: u64,
-}
-
 public struct PlayerExited has copy, drop, store {
     round_id: u64,
     player: address,
@@ -149,7 +135,6 @@ public struct GameReset has copy, drop, store {
 /// Create game state bound to hub.
 public fun create_game_state<T>(
     hub_ref: GameHubRef,
-    server_authority: address,
     name: String,
     entry_fee: u64,
     max_players: u64,
@@ -166,23 +151,19 @@ public fun create_game_state<T>(
         entry_fee_per_player: 0,
         bomb_holder: option::none(),
         holder_start_ms: 0,
-        explode_at_ms: 0,
         holder_rewards: vector::empty<HolderReward>(),
         settlement_consumed: false,
         hub_ref,
-        server_authority,
+        current_room_id: option::none(),
         round_start_ms: 0,
         max_players,
         reward_bps_per_sec: REWARD_BPS_PER_SEC,
-        min_explode_delay_ms: MIN_EXPLODE_DELAY_MS,
-        max_explode_delay_ms: MAX_EXPLODE_DELAY_MS,
     }
 }
 
 /// Initialize and share a new game state (for testing/deployment).
 public entry fun initialize_game<T>(
     hub_id: address,
-    server_authority: address,
     name: vector<u8>,
     entry_fee: u64,
     max_players: u64,
@@ -190,7 +171,7 @@ public entry fun initialize_game<T>(
 ) {
     let hub_ref = GameHubRef { id: object::id_from_address(hub_id) };
     let name_str = string::utf8(name);
-    let game = create_game_state<T>(hub_ref, server_authority, name_str, entry_fee, max_players, ctx);
+    let game = create_game_state<T>(hub_ref, name_str, entry_fee, max_players, ctx);
     
     event::emit(GameCreated {
         game_id: object::id(&game),
@@ -244,9 +225,6 @@ public entry fun leave<T>(
             // If the exiting player is the bomb holder, explode immediately.
             let current_holder = *option::borrow(&game.bomb_holder);
             if (sender == current_holder) {
-                // We force explosion at the current time.
-                // We manually update explode_at_ms so try_explode works immediately.
-                game.explode_at_ms = clock::timestamp_ms(clock);
                 perform_explosion(game, clock);
             };
         };
@@ -259,10 +237,11 @@ public entry fun leave<T>(
     });
 }
 
-/// Start round with pool value from room, random bomb holder + explode time.
+/// Start round with pool value from room, random bomb holder.
 public entry fun start_round<T>(
     rng: &Random,
     game: &mut GameState<T>,
+    room_id: address,
     clock: &Clock,
     pool_value: u64,
     ctx: &mut one::tx_context::TxContext,
@@ -271,13 +250,13 @@ public entry fun start_round<T>(
     assert!(vector::length(&game.players) > 1, E_NOT_ENOUGH_PLAYERS);
     assert!(pool_value > 0, E_POOL_EMPTY);
     
+    // Store current room ID
+    game.current_room_id = option::some(object::id_from_address(room_id));
+    
     // Select random initial bomb holder.
     let initial_holder = select_random_player(rng, &game.players, ctx);
     
-    // random explosion time.
     let now_ms = clock::timestamp_ms(clock);
-    let delay_ms = sample_delay(rng, game.min_explode_delay_ms, game.max_explode_delay_ms, ctx);
-    let explode_at_ms = now_ms + delay_ms;
     
     // Initialize round state.
     game.round_id = game.round_id + 1;
@@ -289,7 +268,6 @@ public entry fun start_round<T>(
     
     game.bomb_holder = option::some(initial_holder);
     game.holder_start_ms = now_ms;
-    game.explode_at_ms = explode_at_ms;
     game.round_start_ms = now_ms;
     game.holder_rewards = vector::empty<HolderReward>();
     game.settlement_consumed = false;
@@ -298,7 +276,6 @@ public entry fun start_round<T>(
     event::emit(RoundStarted {
         round_id: game.round_id,
         bomb_holder: initial_holder,
-        explode_at_ms,
         pool_value,
     });
 }
@@ -321,8 +298,6 @@ public entry fun pass_bomb<T>(
     // Check for Max Hold Time Violation
     if (now_ms > game.holder_start_ms && (now_ms - game.holder_start_ms > MAX_HOLD_TIME_MS)) {
         // Player held too long! Force explosion immediately.
-        // We set explode_at_ms to now so try_explode works.
-        game.explode_at_ms = now_ms;
         perform_explosion(game, clock);
         return
     };
@@ -350,17 +325,16 @@ public entry fun pass_bomb<T>(
     // Record reward.
     add_holder_reward(&mut game.holder_rewards, current_holder, reward);
     
-    // Sticky Hands Mechanic: If < 3s remaining, 50% chance to fail pass
-    let time_left = if (game.explode_at_ms > now_ms) {
-        game.explode_at_ms - now_ms
+    // Sticky Hands Mechanic: After 30s elapsed, 50% chance to fail pass (Danger Zone)
+    let elapsed_ms = if (now_ms > game.round_start_ms) {
+        now_ms - game.round_start_ms
     } else {
         0
     };
 
-    if (time_left < 3000) {
+    if (elapsed_ms > STICKY_HANDS_THRESHOLD_MS) {
         let mut generator = random::new_generator(rng, ctx);
-        // 0 or 1. If 0 (50%), fail the pass.
-        // Or generate_u8_in_range(0..99) < 50
+        // 50% chance to fail the pass
         if (random::generate_bool(&mut generator)) {
              event::emit(BombPassFailed {
                 round_id: game.round_id,
@@ -449,9 +423,6 @@ public entry fun try_explode<T>(
     rng: &Random,
     ctx: &mut one::tx_context::TxContext,
 ) {
-    // Only authorized server can call this
-    assert!(one::tx_context::sender(ctx) == game.server_authority, E_UNAUTHORIZED);
-
     // Already ended, no-op.
     if (is_ended(&game.phase)) return;
     
@@ -529,6 +500,80 @@ public fun consume_settlement_intent<T>(
     }
 }
 
+/// Get settlement data for backend to call gamehub settle
+/// Returns (addresses, amounts, pool_value) for settlement
+public fun get_settlement_data<T>(game: &GameState<T>): (vector<address>, vector<u64>, u64) {
+    assert!(is_ended(&game.phase), E_WRONG_PHASE);
+    assert!(!game.settlement_consumed, E_SETTLEMENT_CONSUMED);
+    
+    let mut survivors = vector::empty<address>();
+    let len = vector::length(&game.players);
+    let mut i = 0;
+    while (i < len) {
+        let player = vector::borrow(&game.players, i);
+        if (player.alive) {
+            vector::push_back(&mut survivors, player.addr);
+        };
+        i = i + 1;
+    };
+    
+    // Calculate survivor payout
+    let survivor_count = vector::length(&survivors);
+    let survivor_payout_each = if (survivor_count > 0) {
+        game.pool_value / survivor_count
+    } else {
+        0
+    };
+    
+    // Build payout vectors (combine survivors + holder rewards)
+    let mut addrs = vector::empty<address>();
+    let mut amts = vector::empty<u64>();
+    
+    // Add survivor payouts
+    i = 0;
+    while (i < survivor_count) {
+        let addr = *vector::borrow(&survivors, i);
+        vector::push_back(&mut addrs, addr);
+        vector::push_back(&mut amts, survivor_payout_each);
+        i = i + 1;
+    };
+    
+    // Add holder rewards (merge if player already in list)
+    let rewards = &game.holder_rewards;
+    i = 0;
+    while (i < vector::length(rewards)) {
+        let reward = vector::borrow(rewards, i);
+        let player = reward.player;
+        let amount = reward.amount;
+        
+        // Find if player already in addrs
+        let mut found_idx: option::Option<u64> = option::none();
+        let mut j = 0;
+        while (j < vector::length(&addrs)) {
+            if (*vector::borrow(&addrs, j) == player) {
+                found_idx = option::some(j);
+                break
+            };
+            j = j + 1;
+        };
+        
+        if (option::is_some(&found_idx)) {
+            // Add to existing amount
+            let idx = *option::borrow(&found_idx);
+            let amt_ref = vector::borrow_mut(&mut amts, idx);
+            *amt_ref = *amt_ref + amount;
+        } else {
+            // New entry
+            vector::push_back(&mut addrs, player);
+            vector::push_back(&mut amts, amount);
+        };
+        
+        i = i + 1;
+    };
+    
+    (addrs, amts, game.pool_value)
+}
+
 /// Prepare the game for the next round or allow dead players to rejoin.
 /// - Removes dead players from the list (they must rejoin/pay again).
 /// - Keeps survivors in the list (they stay for the next round).
@@ -554,9 +599,10 @@ public entry fun reset_game<T>(
 
     game.phase = GamePhase::Waiting;
     game.pool_value = 0;
+    game.current_room_id = option::none();
     game.bomb_holder = option::none();
     game.holder_start_ms = 0;
-    game.explode_at_ms = 0;
+    game.round_start_ms = 0;
     game.holder_rewards = vector::empty();
     game.settlement_consumed = false;
     
@@ -661,16 +707,6 @@ fun select_random_player(
     player.addr
 }
 
-/// Sample random delay for explosion.
-fun sample_delay(
-    rng: &Random,
-    min_ms: u64,
-    max_ms: u64,
-    ctx: &mut one::tx_context::TxContext,
-): u64 {
-    let mut generator = random::new_generator(rng, ctx);
-    random::generate_u64_in_range(&mut generator, min_ms, max_ms)
-}
 
 /// Find player index by address.
 fun find_player_index(players: &vector<Player>, addr: address): option::Option<u64> {
@@ -684,21 +720,6 @@ fun find_player_index(players: &vector<Player>, addr: address): option::Option<u
         i = i + 1;
     };
     option::none()
-}
-
-/// Count number of alive players (survivors).
-fun count_survivors(players: &vector<Player>): u64 {
-    let len = vector::length(players);
-    let mut count = 0;
-    let mut i = 0;
-    while (i < len) {
-        let player = vector::borrow(players, i);
-        if (player.alive) {
-            count = count + 1;
-        };
-        i = i + 1;
-    };
-    count
 }
 
 fun is_waiting(phase: &GamePhase): bool {
@@ -722,14 +743,79 @@ fun is_ended(phase: &GamePhase): bool {
     }
 }
 
+// ========== GAMEHUB INTEGRATION FUNCTIONS ==========
+
+/// Start a bomb panic round (coordinates GameHub + Bomb Panic)
+/// This function bridges the two systems by:
+/// 1. Starting the room in GameHub (marks as Started, collects insurance fee)
+/// 2. Getting the pool value from the room (after fee deduction)
+/// 3. Starting the game logic in Bomb Panic with pool value
+public entry fun start_round_with_hub<T>(
+    rng: &Random,
+    game: &mut GameState<T>,
+    room: &mut gamehub::gamehub::Room<T>,
+    clock: &Clock,
+    admin_cap: &gamehub::gamehub::AdminCap,
+    config: &gamehub::gamehub::Config,
+    ctx: &mut one::tx_context::TxContext,
+) {
+    // 1. Start room in GameHub (collects insurance fee from pool)
+    gamehub::gamehub::start_room_internal(room, admin_cap, config, ctx);
+    
+    // 2. Get pool value from room (after insurance fee deduction)
+    let pool_value = gamehub::gamehub::get_pool_value(room);
+    
+    // 3. Get room address
+    let room_id = object::id_address(room);
+    
+    // 4. Start round in Bomb Panic
+    start_round(rng, game, room_id, clock, pool_value, ctx);
+}
+
+/// Settle a bomb panic round and distribute via GameHub
+/// 1. Gets settlement data from Bomb Panic (survivor + holder payouts)
+/// 2. Consumes settlement intent (set status consumed)
+/// 3. Calls GameHub settle with GameCap authorization (no fee cal)
+public entry fun settle_round_with_hub<T>(
+    game: &mut GameState<T>,
+    room: &mut gamehub::gamehub::Room<T>,
+    game_cap: &gamehub::gamehub::GameCap,
+    ctx: &mut one::tx_context::TxContext,
+) {
+    // 1. Get settlement data from Bomb Panic (doesn't consume yet)
+    let (addresses, amounts, _pool) = get_settlement_data(game);
+    
+    // 2. Consume settlement intent (marks as consumed, intent has drop ability)
+    let _intent = consume_settlement_intent(game);
+    
+    // 3. Settle in GameHub (just updates balances, no fee calculation)
+    gamehub::gamehub::settle_internal(room, addresses, amounts, game_cap, ctx);
+}
+
+/// Prepare for next round: reset game (keeps survivors) + create new room
+/// 1. Resets Bomb Panic game (survivors stay, dead players removed)
+/// 2. Creates a new room for the next round
+public entry fun prepare_next_round<T, G>(
+    registry: &gamehub::gamehub::GameRegistry,
+    config: &gamehub::gamehub::Config,
+    game: &mut GameState<T>,
+    entry_fee: u64,
+    max_players: u8,
+    creation_fee: one::coin::Coin<T>,
+    ctx: &mut one::tx_context::TxContext,
+) {
+    // 1. Reset Bomb Panic game (keeps survivors)
+    reset_game(game);
+    
+    // 2. Create new room for next round
+    gamehub::gamehub::create_room_internal<T, G>(registry, config, entry_fee, max_players, creation_fee, ctx);
+}
+
 #[test_only]
 public fun debug_round_id<T>(g: &GameState<T>): u64 { g.round_id }
 
 #[test_only]
 public fun debug_pool_value<T>(g: &GameState<T>): u64 { g.pool_value }
-
-#[test_only]
-public fun debug_explode_at_ms<T>(g: &GameState<T>): u64 { g.explode_at_ms }
 
 #[test_only]
 public fun debug_phase<T>(g: &GameState<T>): u8 {
@@ -763,16 +849,13 @@ public fun destroy_for_testing<T>(game: GameState<T>) {
         entry_fee_per_player: _,
         bomb_holder: _,
         holder_start_ms: _,
-        explode_at_ms: _,
         holder_rewards: _,
         settlement_consumed: _,
         hub_ref: _,
-        server_authority: _,
+        current_room_id: _,
         round_start_ms: _,
         max_players: _,
         reward_bps_per_sec: _,
-        min_explode_delay_ms: _,
-        max_explode_delay_ms: _,
     } = game;
     object::delete(id);
 }

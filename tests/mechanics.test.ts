@@ -7,8 +7,8 @@ import { Transaction } from '@onelabs/sui/transactions';
 // Configuration
 // ============================================================================
 
-const PACKAGE_ID = "0xc3d28f41b890aea2d9f6c5790cc5b42509be8b53a083a040c5bad852e6a39a7d";
-const RPC_URL = 'https://rpc-testnet.onelabs.cc:443';
+const PACKAGE_ID = process.env.PACKAGE_ID!;
+const RPC_URL = process.env.RPC_URL!;
 const COIN_TYPE = '0x2::oct::OCT';
 
 // ============================================================================
