@@ -14,15 +14,15 @@ const PACKAGE_ID = process.env.PACKAGE_ID;
 const RPC_URL = process.env.RPC_URL || 'https://rpc-testnet.onelabs.cc:443';
 
 // Shared objects from deployment
-const GAME_REGISTRY = "0x2035d9bc13b8f936f25b47ae79026b4363f520bf229386e8d6e107113a5f5b87";
-const ADMIN_CAP = "0x69e07c7611d58d0dc03be8385aaf544ca75e8e37370d1c929e58ea4fa5a8635c";
+const GAME_REGISTRY = "0xd53039f92adc911515267d8682eec60bf7a98dd7ec96a08f80501c5f61724e4b";
+const ADMIN_CAP = "0x9d47cdd1a0d895c7bb5f131131d291ad1adcd6147646b0be635529bdbec881c7";
 
 // Coin type
 const COIN_TYPE = '0x2::oct::OCT';
 
 // ============================================================================
 
-const ADMIN_PRIVATE_KEY = process.env.ADMIN;
+const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY;
 
 // ============================================================================
 // Script

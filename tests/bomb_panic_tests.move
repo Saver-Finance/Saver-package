@@ -7,8 +7,7 @@ use one::random::{Self, Random};
 use one::oct::OCT;
 use one::test_scenario::{Self as ts, Scenario};
 
-const POOL_VALUE: u64 = 1_000_000;
-const PLAYER_COUNT: u64 = 4;
+const ENTRY_FEE: u64 = 100;
 
 // Test addresses
 const ALICE: address = @0xA11CE;
@@ -138,16 +137,17 @@ fun test_start_round_sets_playing_state() {
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
-    // Start round
+    // Start round (2 players, so pool = 100 * 2 = 200)
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let pool_value = ENTRY_FEE * 2;
+    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, pool_value, ts::ctx(&mut scenario));
     
     // Verify state 
     let phase = bomb_panic::debug_phase(&game);
     assert!(phase == 1, 0); // 1 = Playing
     
     let pool = bomb_panic::debug_pool_value(&game);
-    assert!(pool == POOL_VALUE, 1);
+    assert!(pool == pool_value, 1);
     
     // Cleanup
     clock::destroy_for_testing(clock);
@@ -176,9 +176,10 @@ fun test_pass_bomb_changes_holder_and_reduces_pool() {
     ts::next_tx(&mut scenario, CAROL);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
-    // Start round
+    // Start round (3 players, so pool = 100 * 3 = 300)
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let pool_value = ENTRY_FEE * 3;
+    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, pool_value, ts::ctx(&mut scenario));
     
     let initial_pool = bomb_panic::debug_pool_value(&game);
     
@@ -224,9 +225,10 @@ fun test_pass_bomb_only_holder_can_call() {
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
-    // Start round
+    // Start round (2 players, so pool = 100 * 2 = 200)
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let pool_value = ENTRY_FEE * 2;
+    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, pool_value, ts::ctx(&mut scenario));
     
     // Get current holder
     let holder = bomb_panic::debug_bomb_holder(&game);
@@ -262,7 +264,8 @@ fun test_try_explode_during_grace_period_does_nothing() {
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let pool_value = ENTRY_FEE * 2;
+    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, pool_value, ts::ctx(&mut scenario));
     
     // Advance time but stay in grace period (0-10s)
     advance_clock(&mut clock, 5000); // 5 seconds - still in grace period
@@ -300,7 +303,8 @@ fun test_try_explode_after_60s_always_explodes() {
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let pool_value = ENTRY_FEE * 2;
+    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, pool_value, ts::ctx(&mut scenario));
     
     // Advance time to 65 seconds (100% probability zone)
     advance_clock(&mut clock, 65000);
@@ -338,7 +342,8 @@ fun test_consume_settlement_intent_works_once() {
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let pool_value = ENTRY_FEE * 2;
+    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, pool_value, ts::ctx(&mut scenario));
     
     // Explode - advance to 65s (100% zone)
     advance_clock(&mut clock, 65000);
@@ -375,7 +380,8 @@ fun test_consume_settlement_intent_fails_second_time() {
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let pool_value = ENTRY_FEE * 2;
+    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, pool_value, ts::ctx(&mut scenario));
     
     // Explode - advance to 65s (100% zone)
     advance_clock(&mut clock, 65000);
@@ -419,7 +425,7 @@ fun test_full_workflow_happy_path() {
     
     // Start round with pool = entry_fee * 4
     ts::next_tx(&mut scenario, ALICE);
-    let initial_pool = POOL_VALUE;
+    let initial_pool = ENTRY_FEE * 4;
     bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, initial_pool, ts::ctx(&mut scenario));
     
     let round_id = bomb_panic::debug_round_id(&game);
