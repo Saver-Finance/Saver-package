@@ -8,10 +8,12 @@ dotenv.config();
 
 // --- Configuration ---
 const RPC_URL = process.env.RPC_URL || 'https://rpc-testnet.onelabs.cc:443';
-const PACKAGE_ID = "0xca3904165c2b81d25a55a4f6203e2c895e63aabe7db6f19b0288504618ea0205";
-const GAME_REGISTRY = "0xd53039f92adc911515267d8682eec60bf7a98dd7ec96a08f80501c5f61724e4b";
-const GAME_CAP_ID = "0xccaaffcdd574b9e8298e60ee89504fa907dfe3494f988b26c0b63e3e48149c05";
-const ADMIN_CAP = "0x9d47cdd1a0d895c7bb5f131131d291ad1adcd6147646b0be635529bdbec881c7";
+const PACKAGE_ID = "0x0626d0503c31354e982bd71655ccd8b46d8f22943d0c19bcfdc594cd11b9305e";
+const GAME_REGISTRY = "0x2ce9008e175a6a667b981af5867507901dbbe4cd356d187c4deab6fe14b983bb";
+const ADMIN_CAP = "0x302f85f9f2985c80570cccba9e6f0a7c8617c1a4446f019bc200c021087f6b4a";
+const UPGRADE_CAP = "0xab196807c7c4b9f8a1a52b46af419c8b0287f7da42bfea76950c11b4a15ca71a";
+const CONFIG = "0xff6db047f94a77e90762024533a38f4b6ac24e2a208b5e59c4dd413502a066f1";
+const GAME_CAP_ID = "0x8dd907e43f106496cfa3df0988b53cb1e668aa8a38e72c75675d1350df3e20cc";
 const COIN_TYPE = '0x2::oct::OCT';
 const CLOCK_ID = '0x6';
 const RANDOM_ID = '0x8';
@@ -153,17 +155,15 @@ async function main() {
         tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
     }
 
-    // Create Fee (Use Split from Gas)
-    // IMPORTANT: If we set Gas Payment explicitly, we can split from tx.gas
+   
     const [creationFeeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(100)]);
 
-    const CONFIG_ID = "0xdec029cb292f840d226f4d0f3b8bf20eea7a1f743463e73b50f343c85550375a";
 
     tx.moveCall({
         target: `${PACKAGE_ID}::gamehub::create_room`,
         arguments: [
             tx.object(GAME_REGISTRY),
-            tx.object(CONFIG_ID),
+            tx.object(CONFIG),
             tx.pure.u64(ENTRY_FEE), // Entry fee for players
             tx.pure.u8(MAX_PLAYERS),
             creationFeeCoin
@@ -173,10 +173,10 @@ async function main() {
     tx.setGasBudget(100_000_000);
 
     const createRoomResult = await signAndExecute(player1Kp, tx, "Create Room");
-    const roomId = createRoomResult.objectChanges?.find(c => c.type === 'created' && c.objectType.includes('::Room'))?.objectId;
+    const roomId = createRoomResult.objectChanges?.find(c => c.type === 'created' && c.objectType.includes('::Room'))?.objectId as string;
     if (!roomId) throw new Error("Failed to find Room object ID");
     console.log(`🏠 Room Created: ${roomId}`);
-
+    const ksjflksdjf= await client.
     console.log("Waiting 10s for indexing...");
     await new Promise(r => setTimeout(r, 10000));
 
@@ -278,7 +278,7 @@ async function main() {
         arguments: [
             tx.object(roomId),
             tx.object(ADMIN_CAP),
-            tx.object(CONFIG_ID)
+            tx.object(CONFIG)
         ],
         typeArguments: [COIN_TYPE]
     });
@@ -392,8 +392,7 @@ async function main() {
     }
 
 
-    // 8. Settle
-    console.log('\n--- Step 8: Settle Game ---');
+    console.log('\n--- Step 8: Settle Game (Internal Flow) ---');
     console.log("Waiting 10s for indexing before Settle...");
     await new Promise(r => setTimeout(r, 10000));
 
@@ -406,35 +405,28 @@ async function main() {
     const sGas = sCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
     if (sGas) tx.setGasPayment([{ objectId: sGas.coinObjectId, version: sGas.version, digest: sGas.digest }]);
 
-    // Consume Intent
+    // NEW: Single internal settlement call
     tx.moveCall({
-        target: `${PACKAGE_ID}::bomb_panic::consume_settlement_intent`,
-        arguments: [tx.object(gameStateId)],
-        typeArguments: [COIN_TYPE]
-    });
-
-    // Settle
-    const survivorPayouts = [p1Addr, p2Addr];
-    const payoutAmounts = [50_000_000, 50_000_000];
-
-    tx.moveCall({
-        target: `${PACKAGE_ID}::gamehub::settle`,
+        target: `${PACKAGE_ID}::bomb_panic::settle_round_with_hub`,
         arguments: [
-            tx.object(roomId),
-            tx.pure.vector('address', survivorPayouts),
-            tx.pure.vector('u64', payoutAmounts),
-            tx.object(GAME_CAP_ID)
+            tx.object(gameStateId),  // GameState
+            tx.object(roomId),       // Room
+            tx.object(GAME_CAP_ID)   // GameCap
         ],
         typeArguments: [COIN_TYPE]
     });
     tx.setGasBudget(100_000_000);
 
-    await signAndExecute(adminKp, tx, "Consume Intent & Settle");
+    const settleResult = await signAndExecute(adminKp, tx, "Internal Settlement");
 
-    // Verify Room Settled
-    await new Promise(r => setTimeout(r, 2000));
-    const settledRoom = await client.getObject({ id: roomId, options: { showContent: true } });
-    logStructure("Room (Settled)", settledRoom);
+    // NEW: Log the RoundSettled event!
+    const roundSettledEvent = settleResult.events?.find(e => e.type.includes('::RoundSettled'));
+    if (roundSettledEvent) {
+        console.log("🎯 RoundSettled Event Detected!");
+        logStructure("RoundSettled Event", roundSettledEvent);
+    } else {
+        console.warn("⚠️  No RoundSettled event found");
+    }
 
 
     // 9. Reset

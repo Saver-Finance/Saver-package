@@ -14,9 +14,10 @@ const PACKAGE_ID = process.env.PACKAGE_ID;
 const RPC_URL = process.env.RPC_URL || 'https://rpc-testnet.onelabs.cc:443';
 
 // Shared objects from deployment
-const GAME_REGISTRY = "0xd53039f92adc911515267d8682eec60bf7a98dd7ec96a08f80501c5f61724e4b";
-const ADMIN_CAP = "0x9d47cdd1a0d895c7bb5f131131d291ad1adcd6147646b0be635529bdbec881c7";
-
+const GAME_REGISTRY = "0x2ce9008e175a6a667b981af5867507901dbbe4cd356d187c4deab6fe14b983bb";
+const ADMIN_CAP = "0x302f85f9f2985c80570cccba9e6f0a7c8617c1a4446f019bc200c021087f6b4a";
+const UPGRADE_CAP = "0xab196807c7c4b9f8a1a52b46af419c8b0287f7da42bfea76950c11b4a15ca71a";
+const CONFIG = "0xff6db047f94a77e90762024533a38f4b6ac24e2a208b5e59c4dd413502a066f1";
 // Coin type
 const COIN_TYPE = '0x2::oct::OCT';
 
@@ -52,7 +53,6 @@ async function registerGame() {
         ],
         typeArguments: [`${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`],
     });
-
     // set admin as game cap 
     tx.transferObjects([gameCap], adminAddress);
 
