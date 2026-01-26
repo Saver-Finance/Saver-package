@@ -101,6 +101,13 @@ public fun deposit<U, S>(
     // TODO: emit event;
 }
 
+public fun poke<U, S>(
+    account: &mut Account<U, S>,
+    vault: &mut Vault<U, S>
+) {
+    i_sync(account, vault);
+}
+
 public fun withdraw<U, S>(
     account: &mut Account<U, S>,
     vault: &mut Vault<U, S>,

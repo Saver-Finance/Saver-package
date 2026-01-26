@@ -101,6 +101,22 @@ public fun create_liquidate_limiter<U, T, S>(
     transfer::share_object(new_limiter);
 }
 
+public fun poke<U, T, S>(
+    config: &AdapterConfig,
+    minter: &mut Minter<S>,
+    user_info: &mut UserInfo<T, S>,
+    clock: &Clock,
+) {
+    let price = get_price<U, T>();
+    saver::poke(
+        &config.adapter_cap,
+        minter,
+        user_info,
+        clock,
+        price
+    );
+}
+
 public fun deposit<U, T, S>(
     config: &AdapterConfig, 
     token_in: Coin<T>,
@@ -108,7 +124,6 @@ public fun deposit<U, T, S>(
     vault: &mut Vault<T>, 
     minter: &mut Minter<S>,
     clock: &Clock,
-  
 ) {
     let price = get_price<U, T>();
     saver::deposit(
@@ -131,7 +146,6 @@ public fun deposit_underlying<U, T, S>(
     vault: &mut Vault<T>,
     minter: &mut Minter<S>,
     clock: &Clock,
- 
 ) {
     assert!(ut.enable == true, freezeVault());
     let yt_coin = wrap<U, T>(token_in);
