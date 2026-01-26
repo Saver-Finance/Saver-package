@@ -31,7 +31,7 @@ const ENotAllPlayersReady: u64 = 13;
 const EAlreadyJoined: u64 = 14;
 const EInvalidCreationFee: u64 = 15;
 const ECannotLeaveWhenReady: u64 = 16;
-
+const EPoolNotEmpty: u64 = 17;
 public enum Status has store, copy, drop {
     Waiting,
     Started,
@@ -73,6 +73,7 @@ public struct Room<phantom T> has key {
     entry_fee: u64,
     max_players: u8,
     player_balances: Table<address, u64>,
+    joined_players: vector<address>,
     pool: Balance<T>,
     status: Status,
     ready_players: Table<address, bool>,
@@ -105,6 +106,8 @@ fun init(
         ctx.sender()
     );
 }
+
+
 
 public fun is_game_registered(registry: &GameRegistry, game_type: TypeName): bool {
     table::contains(&registry.registered_games, game_type)
@@ -170,6 +173,7 @@ public fun create_room_internal<T, G>(
         entry_fee,
         max_players,
         player_balances: table::new(ctx),
+        joined_players: vector::empty(),
         pool: balance::zero<T>(),
         status: Status::Waiting,
         ready_players: table::new(ctx),
@@ -192,6 +196,16 @@ assert!(!is_ready, EAlreadyReady);
 
 let _ = table::remove(&mut room.player_balances, user);
 let _ = table::remove(&mut room.ready_players, user);
+
+let mut i = 0;
+let len = vector::length(&room.joined_players);
+while (i < len) {
+    if (*vector::borrow(&room.joined_players, i) == user) {
+        vector::swap_remove(&mut room.joined_players, i);
+        break;
+    };
+    i = i + 1;
+}
 }
 
 public fun join_room_internal<T>(
@@ -209,6 +223,7 @@ public fun join_room_internal<T>(
     // Add player with 0 balance (not ready yet)
     table::add(&mut room.player_balances, user, 0);
     table::add(&mut room.ready_players, user, false);
+    vector::push_back(&mut room.joined_players, user);
 }
 
 /// Signal ready and commit entry fee (escrow)
@@ -394,6 +409,34 @@ public fun settle_internal<T>(
 //         ctx
 //     )
 // }
+
+/// Reset a settled room so everyone re-joins next round.
+/// Must be called after settle_internal (pool must be 0).
+entry fun reset_room<T>(
+    room: &mut Room<T>,
+    game_cap: &GameCap,
+    _: &mut TxContext,
+) {
+    assert!(room.status == Status::Settled, ERoomNotSettled);
+    assert!(room.game_type == game_cap.game_type, EUnauthorizedGame);
+    assert!(balance::value(&room.pool) == 0, EPoolNotEmpty);
+
+    let mut i = 0;
+    let len = vector::length(&room.joined_players);
+    while (i < len) {
+        let addr = *vector::borrow(&room.joined_players, i);
+        if (table::contains(&room.player_balances, addr)) {
+            let _ = table::remove(&mut room.player_balances, addr);
+        };
+        if (table::contains(&room.ready_players, addr)) {
+            let _ = table::remove(&mut room.ready_players, addr);
+        };
+        i = i + 1;
+    };
+
+    room.joined_players = vector::empty();
+    room.status = Status::Waiting;
+}
 
 /// Get the current pool value for a room
 public fun get_pool_value<T>(room: &Room<T>): u64 {

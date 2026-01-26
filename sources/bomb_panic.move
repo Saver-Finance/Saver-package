@@ -600,26 +600,15 @@ public fun get_settlement_data<T>(game: &GameState<T>): (vector<address>, vector
     (addrs, amts, game.pool_value)
 }
 
-/// Prepare the game for the next round or allow dead players to rejoin.
-/// - Removes dead players from the list (they must rejoin/pay again).
-/// - Keeps survivors in the list (they stay for the next round).
+/// Prepare the game for the next round (everyone re-joins).
+/// - Removes all players (everyone must rejoin/pay again).
 /// - Resets phase to Waiting so more players can join or round can restart.
 public entry fun reset_game<T>(game: &mut GameState<T>) {
     assert!(is_ended(&game.phase), E_WRONG_PHASE);
     assert!(game.settlement_consumed, E_SETTLEMENT_NOT_CONSUMED);
 
-    // Keep only alive players for the next round.
-    let mut survivors = vector::empty<Player>();
-    let len = vector::length(&game.players);
-    let mut i = 0;
-    while (i < len) {
-        let player = vector::borrow(&game.players, i);
-        if (player.alive) {
-            vector::push_back(&mut survivors, *player);
-        };
-        i = i + 1;
-    };
-    game.players = survivors;
+    // Clear all players for the next round.
+    game.players = vector::empty();
 
     game.phase = GamePhase::Waiting;
     game.pool_value = 0;
@@ -806,13 +795,13 @@ public entry fun settle_round_with_hub<T>(
 
 /// Prepare for next round: reset game and bind to new room
 /// User should create new room first, then call this to reset game and bind it
-/// 1. Resets Bomb Panic game (survivors stay, dead players removed)
+/// 1. Resets Bomb Panic game (everyone re-joins)
 /// 2. Updates game.room_id to point to new room
 public entry fun prepare_next_round<T>(
     game: &mut GameState<T>,
     new_room_id: address,
 ) {
-    // 1. Reset Bomb Panic game (keeps survivors)
+    // 1. Reset Bomb Panic game (clears all players)
     reset_game(game);
 
     // 2. Update room_id to new room

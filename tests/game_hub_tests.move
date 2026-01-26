@@ -82,8 +82,8 @@ module gamehub::gamehub_tests {
             let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
             let entry_fee = 10_000_000_000;
             
-            // Mint coin for entry fee
-            let coin = coin::mint_for_testing<OCT>(entry_fee, ctx(&mut scenario));
+            // Mint coin for entry fee (OCT requires 2x entry fee)
+            let coin = coin::mint_for_testing<OCT>(entry_fee * 2, ctx(&mut scenario));
             
             gamehub::ready_to_play(&mut room, coin, ctx(&mut scenario));
             
@@ -99,8 +99,8 @@ module gamehub::gamehub_tests {
             // Join
             gamehub::join_room(&mut room, ctx(&mut scenario));
             
-            // Ready with entry fee
-            let coin = coin::mint_for_testing<OCT>(entry_fee, ctx(&mut scenario));
+            // Ready with entry fee (OCT requires 2x entry fee)
+            let coin = coin::mint_for_testing<OCT>(entry_fee * 2, ctx(&mut scenario));
             gamehub::ready_to_play(&mut room, coin, ctx(&mut scenario));
             
             test_scenario::return_shared(room);
@@ -136,17 +136,7 @@ module gamehub::gamehub_tests {
             test_scenario::return_to_sender(&scenario, game_cap);
         };
 
-        // --- Step 9: Player 1 claims (gets 18 OCT) ---
-        next_tx(&mut scenario, PLAYER_1);
-        {
-            let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            
-            gamehub::claim(&mut room, ctx(&mut scenario));
-
-            test_scenario::return_shared(room);
-        };
-
-        // --- Step 10: Verify Player 1 balance ---
+        // --- Step 9: Verify Player 1 balance ---
         next_tx(&mut scenario, PLAYER_1);
         {
             let expected_balance = 18_000_000_000;
@@ -219,10 +209,10 @@ module gamehub::gamehub_tests {
             
             gamehub::join_room(&mut room, ctx(&mut scenario));
             
-            let coin = coin::mint_for_testing<OCT>(10_000_000_000, ctx(&mut scenario));
+            let coin = coin::mint_for_testing<OCT>(20_000_000_000, ctx(&mut scenario));
             gamehub::ready_to_play(&mut room, coin, ctx(&mut scenario));
             
-            // Verify pool has entry fee
+            // Verify pool has entry fee (OCT rule: provide 2x, take 1x)
             assert!(gamehub::get_pool_value(&room) == 10_000_000_000, 0);
             
             test_scenario::return_shared(room);
@@ -241,7 +231,7 @@ module gamehub::gamehub_tests {
             test_scenario::return_shared(room);
         };
 
-        // Verify Player 1 got refund
+        // Verify Player 1 got one of the refunded coins (10 OCT)
         next_tx(&mut scenario, PLAYER_1);
         {
             let coin = test_scenario::take_from_sender<Coin<OCT>>(&scenario);
@@ -298,7 +288,7 @@ module gamehub::gamehub_tests {
         {
             let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
             gamehub::join_room(&mut room, ctx(&mut scenario));
-            let coin = coin::mint_for_testing<OCT>(10_000_000_000, ctx(&mut scenario));
+            let coin = coin::mint_for_testing<OCT>(20_000_000_000, ctx(&mut scenario));
             gamehub::ready_to_play(&mut room, coin, ctx(&mut scenario));
             test_scenario::return_shared(room);
         };
@@ -368,7 +358,7 @@ module gamehub::gamehub_tests {
         {
             let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
             gamehub::join_room(&mut room, ctx(&mut scenario));
-            let coin1 = coin::mint_for_testing<OCT>(10_000_000_000, ctx(&mut scenario));
+            let coin1 = coin::mint_for_testing<OCT>(20_000_000_000, ctx(&mut scenario));
             gamehub::ready_to_play(&mut room, coin1, ctx(&mut scenario));
             test_scenario::return_shared(room);
         };
@@ -383,8 +373,8 @@ module gamehub::gamehub_tests {
         next_tx(&mut scenario, PLAYER_1);
         {
             let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            // Use the refunded coin
-            let coin = test_scenario::take_from_sender<Coin<OCT>>(&scenario);
+            // Mint a fresh coin for ready (OCT requires 2x entry fee)
+            let coin = coin::mint_for_testing<OCT>(20_000_000_000, ctx(&mut scenario));
             gamehub::ready_to_play(&mut room, coin, ctx(&mut scenario));
             
             // Verify pool has entry fee again
