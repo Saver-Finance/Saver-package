@@ -5,6 +5,8 @@ use std::string::{Self, String};
 use one::clock::{Self, Clock};
 use one::event;
 use one::random::{Self, Random};
+use one::object::{Self};
+use one::transfer::{Self};
 
 /// Basis points denominator.
 const BPS_DENOM: u64 = 10_000;
