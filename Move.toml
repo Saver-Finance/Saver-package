@@ -1,7 +1,7 @@
 [package]
 name = "bomb_panic"
 edition = "2024.beta"
-
+published-at = "0x0dbaf618a3245b44f982bf1090c728b7b1373f55c4f6d668c37b134de0dbade2"
 
 [dependencies]
 MoveStdlib = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "main", override = true }

@@ -44,3 +44,11 @@ source = { root = true }
 use_environment = "testnet"
 manifest_digest = "656F502DE8AF855E2B0B9B3B65A5DC05E9078B188A28B12778A176CC40D97E41"
 deps = { MoveStdlib = "MoveStdlib", One = "One" }
+
+[env]
+
+[env.testnet]
+chain-id = "1bd5c965"
+original-published-id = "0x0aa2d1ac9b024119d7d692987b8d54b4e4299b2207348d2069625671e7b211fe"
+latest-published-id = "0x0aa2d1ac9b024119d7d692987b8d54b4e4299b2207348d2069625671e7b211fe"
+published-version = "1"

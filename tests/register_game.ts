@@ -14,9 +14,8 @@ const PACKAGE_ID = process.env.PACKAGE_ID;
 const RPC_URL = process.env.RPC_URL || 'https://rpc-testnet.onelabs.cc:443';
 
 // Shared objects from deployment
-const GAME_REGISTRY = "0xd53039f92adc911515267d8682eec60bf7a98dd7ec96a08f80501c5f61724e4b";
-const ADMIN_CAP = "0x9d47cdd1a0d895c7bb5f131131d291ad1adcd6147646b0be635529bdbec881c7";
-
+const GAME_REGISTRY = process.env.GAME_REGISTRY;
+const ADMIN_CAP = process.env.ADMIN_CAP;
 // Coin type
 const COIN_TYPE = '0x2::oct::OCT';
 
@@ -46,13 +45,12 @@ async function registerGame() {
     const [gameCap] = tx.moveCall({
         target: `${PACKAGE_ID}::gamehub::register_game`,
         arguments: [
-            tx.object(GAME_REGISTRY),
-            tx.object(ADMIN_CAP),
+            tx.object(GAME_REGISTRY!),
+            tx.object(ADMIN_CAP!),
             tx.pure.vector('u8', Array.from(new TextEncoder().encode('Bomb Panic'))),
         ],
         typeArguments: [`${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`],
     });
-
     // set admin as game cap 
     tx.transferObjects([gameCap], adminAddress);
 
