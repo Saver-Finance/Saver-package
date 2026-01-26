@@ -12,6 +12,7 @@ use one::table::{Self, Table};
 use std::type_name::{Self, TypeName};
 
 const FEE_RATE_DENOMINATOR: u64 = 1000; 
+const MIN_ENTRY_FEE: u64 = 100; // Minimum entry fee to prevent 0-pool games
 
 const EFullPlayerInRoom: u64 = 0;
 const EInvalidEntryFee: u64 = 1;
@@ -20,15 +21,16 @@ const EGameNotRegistered: u64 = 3;
 const EGameAlreadyRegistered: u64 = 4;
 const ERoomCanNotStart: u64 = 5;
 const EPlayerNotFound: u64 = 6;
-// const ERoomNotSettled: u64 = 7;
-const ENothingToClaim: u64 = 7;
-const EUnauthorizedGame: u64 = 8;
-const EAlreadyReady: u64 = 9;
-const ENotReady: u64 = 10;
-const ENotAllPlayersReady: u64 = 11;
-const EAlreadyJoined: u64 = 12;
-const EInvalidCreationFee: u64 = 13;
-const EInsufficientPoolBalance: u64 = 14;
+const ERoomNotSettled: u64 = 7;
+const ENothingToClaim: u64 = 8;
+const EInsufficientPoolBalance: u64 = 9;
+const EUnauthorizedGame: u64 = 10;
+const EAlreadyReady: u64 = 11;
+const ENotReady: u64 = 12;
+const ENotAllPlayersReady: u64 = 13;
+const EAlreadyJoined: u64 = 14;
+const EInvalidCreationFee: u64 = 15;
+const ECannotLeaveWhenReady: u64 = 16;
 
 public enum Status has store, copy, drop {
     Waiting,
@@ -136,22 +138,29 @@ public fun create_room_internal<T, G>(
     config: &Config,
     entry_fee: u64,
     max_players: u8,
-    creation_fee: Coin<T>,
+    mut creation_fee: Coin<T>,
     ctx: &mut TxContext
 ) {
     let game_type = type_name::with_defining_ids<G>();
     
     assert!(is_game_registered(registry, game_type), EGameNotRegistered);
     
-    // Validate and transfer creation fee to insurance pool
+    // Validate minimum entry fee to prevent 0-pool games
+    assert!(entry_fee >= MIN_ENTRY_FEE, EInvalidEntryFee);
+    
+    // Validate and split creation fee - refund excess
+    let fee_value = coin::value(&creation_fee);
     if (config.room_creation_fee > 0) {
-        assert!(coin::value(&creation_fee) >= config.room_creation_fee, EInvalidCreationFee);
+        assert!(fee_value >= config.room_creation_fee, EInvalidCreationFee);
+        
+        // Split coin: keep room_creation_fee, refund excess
+        if (fee_value > config.room_creation_fee) {
+            let refund = coin::split(&mut creation_fee, fee_value - config.room_creation_fee, ctx);
+            transfer::public_transfer(refund, tx_context::sender(ctx));
+        };
     };
     
-    // Validate token is whitelisted
-    assert!(table::contains(&config.whitelisted_tokens, type_name::with_defining_ids<T>()), EUnauthorizedGame);
-
-    // Transfer creation fee to insurance pool (even if 0)
+    // Transfer exact creation fee to insurance pool
     transfer::public_transfer(creation_fee, config.insurance_pool);
     
     let room = Room<T> {
@@ -168,13 +177,29 @@ public fun create_room_internal<T, G>(
     transfer::share_object(room);
 }
 
-/// Join room without paying entry fee (just add to player list)
+
+public fun leave_room_internal<T>(
+    room: &mut Room<T>,
+    ctx: &TxContext
+) {
+    let user = ctx.sender();
+    
+    assert!(room.status == Status::Waiting, ERoomNotWaiting);
+    assert!(table::contains(&room.player_balances, user), EPlayerNotFound);
+    let is_ready = *table::borrow(&room.ready_players, user);
+
+assert!(!is_ready, EAlreadyReady); 
+
+let _ = table::remove(&mut room.player_balances, user);
+let _ = table::remove(&mut room.ready_players, user);
+}
+
 public fun join_room_internal<T>(
     room: &mut Room<T>,
     ctx: &TxContext
 ) {
     assert!(room.status == Status::Waiting, ERoomNotWaiting);
-    assert!(room.player_balances.length() as u8 < room.max_players, EFullPlayerInRoom);
+    assert!(table::length(&room.player_balances) < (room.max_players as u64), EFullPlayerInRoom);
 
     let user = ctx.sender();
     
@@ -257,7 +282,6 @@ fun all_players_ready<T>(room: &Room<T>): bool {
     let player_count = table::length(&room.player_balances);
     
     // Check if pool equals expected total (entry_fee * player_count)
-    // This works because pool = sum of all ready player entry fees
     let expected_pool = room.entry_fee * player_count;
     let actual_pool = balance::value(&room.pool);
     
@@ -270,8 +294,8 @@ public fun start_room_internal<T> (
     config: &Config,
     ctx: &mut TxContext,
 ) {
-    assert!(room.status == Status::Waiting || room.status == Status::Settled, ERoomCanNotStart);
-    assert!(room.player_balances.length() >= 2, ERoomCanNotStart);
+    assert!(room.status == Status::Waiting, ERoomCanNotStart);
+    assert!(table::length(&room.player_balances) >= 2, ERoomCanNotStart);
     
     // Check all players are ready
     assert!(all_players_ready(room), ENotAllPlayersReady);
@@ -305,8 +329,17 @@ public fun settle_internal<T>(
     let payouts_len = vector::length(&addresses);
     assert!(payouts_len == vector::length(&amounts), EInvalidEntryFee);
     
-    // Direct transfer to users
+
+    let mut total_payout: u64 = 0;
     let mut i = 0;
+    while (i < payouts_len) {
+        total_payout = total_payout + *vector::borrow(&amounts, i);
+        i = i + 1;
+    };
+    assert!(total_payout <= balance::value(&room.pool), EInsufficientPoolBalance);
+    
+    // update balances
+    i = 0;
     while (i < payouts_len) {
         let addr = *vector::borrow(&addresses, i);
         let amount = *vector::borrow(&amounts, i);
@@ -377,6 +410,12 @@ public fun get_player_count<T>(room: &Room<T>): u64 {
     table::length(&room.player_balances)
 }
 
+/// Get room max players
+public fun get_max_players<T>(room: &Room<T>): u8 {
+    room.max_players
+}
+
+
 entry fun update_config(
     config: &mut Config,
     _: &AdminCap,
@@ -416,6 +455,13 @@ entry fun join_room<T>(
     ctx: &TxContext
 ) {
     join_room_internal(room, ctx);
+}
+
+entry fun leave_room<T>(
+    room: &mut Room<T>,
+    ctx: &TxContext
+) {
+    leave_room_internal(room, ctx);
 }
 
 entry fun ready_to_play<T>(
