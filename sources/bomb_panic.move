@@ -4,7 +4,6 @@ module games::bomb_panic;
 use one::clock::{Self, Clock};
 use one::event;
 use one::random::{Self, Random};
-use std::string::{Self, String};
 
 /// Basis points denominator.
 const BPS_DENOM: u64 = 10_000;
