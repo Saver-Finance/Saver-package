@@ -19,7 +19,6 @@ The GameHub module acts as a lobby and escrow system for on-chain games. It hand
 - **`Room<T>`**: Represents a game lobby for a specific token type `T`.
 
 ### Capabilities
-- **`AdminCap`**: Required for administrative tasks (updating config, registering games).
 - **`GameCap`**: Minted when a game is registered. Required for game server operations like settling and resetting rooms.
 
 ---
@@ -117,31 +116,27 @@ Clears the room players and state after settlement, setting status back to `Wait
 
 ---
 
-### Admin Configuration
-
-#### `update_config`
-- **Arguments**: `config`, `admin_cap`, `fee_rate`, `insurance_pool`, `room_creation_fee`.
-
-#### `add_whitelist<T>`
-- **Arguments**: `config`, `admin_cap`.
-- **Generic Types**: `T` (Token to whitelist).
-
-#### `register_game<G>`
-- **Arguments**: `registry`, `admin_cap`, `game_name` (bytes).
-- **Generic Types**: `G` (Game Type Witness).
-- **Returns**: `GameCap` (Must be stored/transferred).
-
----
-
 ## 3. Error Codes
 
 | Code | Name | Description |
 |------|------|-------------|
-| 0 | `EFullPlayerInRoom` | Room is at max capacity |
-| 1 | `EInvalidEntryFee` | Coin value does not match entry fee |
-| 2 | `ERoomNotWaiting` | Room is not in Waiting state |
-| 10 | `ENotReady` | Player tried to cancel but wasn't ready |
-| 11 | `ENotAllPlayersReady` | Cannot start room, players missing readiness |
-| 13 | `EAlreadyJoined` | Player already in room |
-| 14 | `EPlayerNotFound` | Player not in room |
+| 0 | `EFullPlayerInRoom` | Room is full |
+| 1 | `EInvalidEntryFee` | Invalid entry fee amount |
+| 2 | `ERoomNotWaiting` | Room status is not Waiting |
+| 3 | `EGameNotRegistered` | Game type is not registered |
+| 4 | `EGameAlreadyRegistered` | Game type already registered |
+| 5 | `ERoomCanNotStart` | Room cannot start (e.g. not enough players) |
+| 6 | `EPlayerNotFound` | Player is not in the room |
+| 7 | `ERoomNotSettled` | Room is not in Settled state |
+| 8 | `ENothingToClaim` | No balance to claim |
+| 9 | `EInsufficientPoolBalance` | Pool balance insufficient for operation |
+| 10 | `EUnauthorizedGame` | Game type mismatch or unauthorized |
+| 11 | `EAlreadyReady` | Player is already ready |
+| 12 | `ENotReady` | Player is not ready |
+| 13 | `ENotAllPlayersReady` | Not all players are ready |
+| 14 | `EAlreadyJoined` | Player already joined the room |
+| 15 | `EInvalidCreationFee` | Invalid room creation fee |
+| 16 | `ECannotLeaveWhenReady` | Cannot leave room while ready |
+| 17 | `EPoolNotEmpty` | Pool must be empty (e.g. for reset) |
+
 
