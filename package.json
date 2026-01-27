@@ -2,7 +2,7 @@
   "name": "bomb_panic",
   "version": "1.0.0",
   "description": "Bomb Panic game smart contract tests",
-  "type": "module",
+  
   "scripts": {
     "test:integration": "ts-node tests/integration.test.ts",
     "test:simple": "ts-node tests/bomb_panic_tests.ts"

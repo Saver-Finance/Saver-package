@@ -1224,11 +1224,6 @@ fun test_repay() {
     print(&current_debt);
     assert!(current_debt == 500000, 0);
 
-    let rd_current_ut_balance = redeem_pool::get_vault_ut_balance(&rd_vault);
-    let rd_current_total_buffer = redeem_pool::get_vault_total_buffer(&rd_vault);
-    assert!(rd_current_ut_balance as u128 == rd_current_total_buffer, 0);
-    assert!(rd_current_ut_balance == 1500000, 0);
-
     // return all shared objects 
     test_scenario::return_shared(saver_config);
     test_scenario::return_shared(limiter_config);
@@ -1515,91 +1510,94 @@ public fun test_redeem_pool() {
     // take all shared objects
     let rd_config = test_scenario::take_shared<RdConfig>(&scenario);
     let mut rd_vault = test_scenario::take_shared<RdVault<OCT, SROCT>>(&scenario);
+    let uts = test_scenario::take_shared<UnderlyingToken<OCT, YOCT, SROCT>>(&scenario);
+    let mut saver_vault_reserve = test_scenario::take_shared<SaverReserve<YOCT>>(&scenario);
+    let saver_config = test_scenario::take_shared<SaverConfig>(&scenario);
+    let limiter_config = test_scenario::take_shared<LimiterConfig>(&scenario);
+    let adapter_config = test_scenario::take_shared<AdapterConfig>(&scenario);
+    let mut mock_share_vault = test_scenario::take_shared<MockVault<OCT, YOCT>>(&scenario);
+    let mut sroct_minter = test_scenario::take_shared<SaverMinter<SROCT>>(&scenario);
 
-    // 1. create account
+    // init user info
+    init_saver_user_info<YOCT, SROCT>(&sroct_minter, &mut scenario, User1);
+    let mut user1_saver_info = test_scenario::take_from_address<SaverUserInfo<YOCT, SROCT>>(&scenario, User1);
+    print(&b"User1 saver info: ");
+    print(&user1_saver_info);
+
+
+    // Setting case
+
+    // 1. User 1 deposit 1000000000 YOCT 
     test_scenario::next_tx(&mut scenario, User1);
-    redeem_pool::create_account(
-        &rd_config,
-        &rd_vault,
+    let amount_to_deposit = 10000000000;
+    let coin_to_deposit = mint_coin<OCT>(amount_to_deposit, &mut scenario);
+    let coin_to_deposit = mock::deposit(&mut mock_share_vault, coin_to_deposit, test_scenario::ctx(&mut scenario));
+    mock_adapter::deposit(
+        &adapter_config,
+        coin_to_deposit,
+        &mut user1_saver_info,
+        &mut saver_vault_reserve,
+        &mut sroct_minter,
+        &clock,
+        &mock_share_vault
+    );
+
+    // 4. User 1 mint sroct
+    test_scenario::next_tx(&mut scenario, User1);
+    let amount_to_mint = 5000000;
+    mock_adapter::mint(
+        &uts,
+        &adapter_config,
+        &mut user1_saver_info,
+        &mut sroct_minter,
+        &clock,
+        amount_to_mint as u64,
+        User1,
+        &mock_share_vault,
         test_scenario::ctx(&mut scenario)
     );
-
     test_scenario::next_tx(&mut scenario, User1);
-    let mut user_account = test_scenario::take_from_address<redeem_pool::Account<OCT, SROCT>>(&scenario, User1);
-
-    // 2. deposit
-    let amount_sroct_to_exchange: u64 = 100000000;
-    let sroct_to_exchange = mint_coin<SROCT>(amount_sroct_to_exchange, &mut scenario);
-    test_scenario::next_tx(&mut scenario, User1);
-    redeem_pool::deposit(
-        &rd_config,
-        sroct_to_exchange,
-        &mut user_account,
-        &mut rd_vault,
-    );
-    test_scenario::next_tx(&mut scenario, User1);
-    assert!(redeem_pool::get_vault_total_unexchange(&rd_vault) == amount_sroct_to_exchange as u128, 0);
-    // 3. donate
-    let amount_oct_to_donate: u64 = 30000;
-    clock::increment_for_testing(&mut clock, 10000);
-    let oct_to_donate = mint_coin<OCT>(amount_oct_to_donate, &mut scenario);
+    let oct_to_donate = mint_coin<OCT>(5000000, &mut scenario);
     redeem_pool::donate(
         &rd_config,
         oct_to_donate,
         &mut rd_vault
     );
     test_scenario::next_tx(&mut scenario, User1);
-    let current_weight = (amount_oct_to_donate as u128) * FIXED_POINT_SCALAR / (amount_sroct_to_exchange as u128);
-    assert!(current_weight == redeem_pool::get_vault_accumulated_weight(&rd_vault), 0);
-    let (_, _, _, user_ent_w) = redeem_pool::get_account_info(&user_account);
-    assert!(user_ent_w == 0, 0);
-    let total_to_exchange = (current_weight) * (amount_sroct_to_exchange as u128) / FIXED_POINT_SCALAR;
-
-    redeem_pool::poke(
-        &mut user_account,
-        &mut rd_vault
-    );
-    test_scenario::next_tx(&mut scenario, User1);
-
-    let (_, user_unex, user_ex, user_ent_w) = redeem_pool::get_account_info(&user_account);
-    assert!(user_ent_w == current_weight, 0);
-    assert!(user_ex == total_to_exchange, 0);
-    print(&user_unex);
-    print(&user_ex);
-
-    // 4. claim
-    test_scenario::next_tx(&mut scenario, User1);
-    redeem_pool::claim(
-        &mut user_account,
+    let coin_was_minted = test_scenario::take_from_address<Coin<SROCT>>(&scenario, User1);
+    assert!(coin::value(&coin_was_minted) == amount_to_mint as u64, 0);
+    assert!(saver::get_user_info_debt(&user1_saver_info) == amount_to_mint as u128, 0);
+    
+    redeem_pool::redeem(
+        &rd_config,
         &mut rd_vault,
-        20000,
-        User1, 
-        test_scenario::ctx(&mut scenario)
-    );
-    test_scenario::next_tx(&mut scenario, User1);
-    let claimed_coin = test_scenario::take_from_address<Coin<OCT>>(&scenario, User1);
-    assert!(coin::value(&claimed_coin) == 20000, 0);
-    coin::burn_for_testing(claimed_coin);
-
-    // 5. withdraw
-    redeem_pool::withdraw(
-        &mut user_account,
-        &mut rd_vault,
-        10000,
+        coin_was_minted,
+        &mut sroct_minter,
         User1,
         test_scenario::ctx(&mut scenario)
     );
     test_scenario::next_tx(&mut scenario, User1);
-    let withdrawed_coin = test_scenario::take_from_address<Coin<SROCT>>(&scenario, User1);
-    assert!(coin::value(&withdrawed_coin) == 10000, 0);
-    coin::burn_for_testing(withdrawed_coin);
+    let coin_redeem = test_scenario::take_from_address<Coin<OCT>>(&scenario, User1);
+    assert!(coin::value(&coin_redeem) == 5000000, 0);
+    coin::burn_for_testing(coin_redeem);
 
-    // return all shared objects
+    // return all shared objects 
+    test_scenario::return_shared(saver_config);
+    test_scenario::return_shared(limiter_config);
+    test_scenario::return_shared(sroct_minter);
+    test_scenario::return_shared(adapter_config);
+    test_scenario::return_shared(mock_share_vault);
+    test_scenario::return_shared(saver_vault_reserve);
+    test_scenario::return_shared(uts);
     test_scenario::return_shared(rd_vault);
     test_scenario::return_shared(rd_config);
 
-    // return user object
-    test_scenario::return_to_address(User1, user_account);
+    // return to address
+    test_scenario::return_to_address(User1, user1_saver_info);
+
+    //test_scenario::return_to_address(Keeper, keeper_cap);
+
+    test_scenario::next_tx(&mut scenario, Admin);
 
     test_scenario::end(scenario);
     clock::destroy_for_testing(clock);

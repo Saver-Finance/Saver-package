@@ -542,6 +542,13 @@ public fun check_loss<T, S>(
     i_check_loss(price, yt.decimals, yt.active_balance, yt.expected_value, yt.maximum_loss);
 }
 
+public fun burn_token<S>(
+    coin_to_burn: Coin<S>,
+    minter: &mut Minter<S>,
+) {
+    coin::burn(&mut minter.treasury, coin_to_burn);
+}
+
 /// Internal
 
 fun i_mint<T, S>(
