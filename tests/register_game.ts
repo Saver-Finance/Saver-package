@@ -14,8 +14,8 @@ const PACKAGE_ID = process.env.PACKAGE_ID;
 const RPC_URL = process.env.RPC_URL || 'https://rpc-testnet.onelabs.cc:443';
 
 // Shared objects from deployment
-const GAME_REGISTRY = "0x2035d9bc13b8f936f25b47ae79026b4363f520bf229386e8d6e107113a5f5b87";
-const ADMIN_CAP = "0x69e07c7611d58d0dc03be8385aaf544ca75e8e37370d1c929e58ea4fa5a8635c";
+const ADMIN_CAP_ID = `0x4ccf015d5197b6bf3d6f3f41e3215c5d36e670236709f604f27d673656cea110`;
+const REGISTRY_ID = `0xd8faa05df92c73e5ec2d8e1d8e18d71eaec89cd116fdd2d3fc9f4b23f0e848e2`;
 
 // Coin type
 const COIN_TYPE = '0x2::oct::OCT';
@@ -33,21 +33,21 @@ const client = new SuiClient({ url: RPC_URL });
 async function registerGame() {
     console.log('🔐 Registering Bomb Panic game with GameHub...\n');
 
-    const adminKeypair = Ed25519Keypair.fromSecretKey(decodeSuiPrivateKey(ADMIN_PRIVATE_KEY!).secretKey);
-    const adminAddress = adminKeypair.getPublicKey().toSuiAddress();
+    const adminKeypair = Ed25519Keypair.deriveKeypair(process.env.ADMIN!);
+    const adminAddress = adminKeypair.toSuiAddress();
 
     console.log(`Admin address: ${adminAddress}`);
     console.log(`Package ID: ${PACKAGE_ID}`);
-    console.log(`Game Registry: ${GAME_REGISTRY}`);
-    console.log(`Admin Cap: ${ADMIN_CAP}\n`);
+    console.log(`Game Registry: ${REGISTRY_ID}`);
+    console.log(`Admin Cap: ${ADMIN_CAP_ID}\n`);
 
     const tx = new Transaction();
 
     const [gameCap] = tx.moveCall({
         target: `${PACKAGE_ID}::gamehub::register_game`,
         arguments: [
-            tx.object(GAME_REGISTRY),
-            tx.object(ADMIN_CAP),
+            tx.object(REGISTRY_ID),
+            tx.object(ADMIN_CAP_ID),
             tx.pure.vector('u8', Array.from(new TextEncoder().encode('Bomb Panic'))),
         ],
         typeArguments: [`${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`],

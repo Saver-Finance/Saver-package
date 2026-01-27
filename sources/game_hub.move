@@ -1,14 +1,11 @@
 
 module gamehub::gamehub;
 
-use one::object::{Self, UID};
-use one::tx_context::{Self, TxContext};
 use one::balance::{Self, Balance};
-use one::transfer::{Self};
 use one::coin::{Self, Coin};
 use one::oct::OCT;
-use std::string::{Self, String};
 use one::table::{Self, Table};
+use std::string::{Self, String};
 use std::type_name::{Self, TypeName};
 
 const FEE_RATE_DENOMINATOR: u64 = 1000; 
@@ -154,7 +151,7 @@ public fun create_room_internal<T, G>(
     // Transfer creation fee to insurance pool (even if 0)
     transfer::public_transfer(creation_fee, config.insurance_pool);
     
-    let room = Room<T> {
+    let _room = Room<T> {
         id: object::new(ctx),
         game_type,
         creator: tx_context::sender(ctx),
@@ -191,38 +188,44 @@ public fun ready_to_play_internal<T>(
     room: &mut Room<T>,
     mut coin: Coin<T>,
     ctx: &mut TxContext
-) {
+) : Coin<T> {
     let user = ctx.sender();
-    
     
     assert!(room.status == Status::Waiting, ERoomNotWaiting);
     assert!(table::contains(&room.player_balances, user), EPlayerNotFound);
-    
-    // Check if it is OCT token for 50% rule
-    if (type_name::with_defining_ids<T>() == type_name::with_defining_ids<OCT>()) {
-        // For OCT, user must provide at least 2 * entry_fee to prove 50% balance
-        assert!(coin::value(&coin) >= room.entry_fee * 2, EInsufficientPoolBalance);
-        
-        // Take entry fee
-        let fee_coin = coin::split(&mut coin, room.entry_fee, ctx);
-        room.pool.join(coin::into_balance(fee_coin));
-        
-        // Refund remaining
-        transfer::public_transfer(coin, user);
-    } else {
-        // Normal token check
-        assert!(coin::value(&coin) == room.entry_fee, EInvalidEntryFee);
-        room.pool.join(coin::into_balance(coin));
-    };
-
     assert!(!*table::borrow(&room.ready_players, user), EAlreadyReady);
+
+    let total = coin::value(&coin);
+
+    // Check if it is OCT token for 50% rule
+    let is_oct = type_name::with_defining_ids<T>() == type_name::with_defining_ids<OCT>();  
+    if (is_oct) {
+        assert!(total >= room.entry_fee * 2, EInsufficientPoolBalance);
+    } else {
+        assert!(total == room.entry_fee, EInvalidEntryFee); 
+    };
+    
+    let fee_coin = coin::split(&mut coin, room.entry_fee, ctx);
+    room.pool.join(coin::into_balance(fee_coin));
     
     // Mark as ready
     *table::borrow_mut(&mut room.ready_players, user) = true;
-    
     // Update balance to entry fee
     *table::borrow_mut(&mut room.player_balances, user) = room.entry_fee;
+
+    coin
+
+    // transfer::transfer(coin::into_coin(fee_coin), room.insurance_pool);
 }
+
+// entry fun ready_to_play_entry<T>(
+//     room: &mut Room<T>,
+//     coin: Coin<T>,
+//     ctx: &mut TxContext
+// ) {
+//     let refund_coin = ready_to_play_internal(room, coin, ctx);
+//     transfer::public_transfer(refund_coin, ctx.sender());
+// }
 
 /// Cancel ready and get refund
 public fun cancel_ready_internal<T>(
@@ -281,7 +284,7 @@ public fun start_room_internal<T> (
     let insurance_fee = (total_pool * config.fee_rate) / FEE_RATE_DENOMINATOR;
     
     if (insurance_fee > 0) {
-        let fee_coin = coin::from_balance(
+        let _fee_coin = coin::from_balance(
             balance::split(&mut room.pool, insurance_fee),
             ctx
         );
@@ -312,11 +315,11 @@ public fun settle_internal<T>(
         let amount = *vector::borrow(&amounts, i);
         
         if (amount > 0) {
-            let coin = coin::from_balance(
+            let _coin = coin::from_balance(
                 balance::split(&mut room.pool, amount),
                 ctx
             );
-            transfer::public_transfer(coin, addr);
+            transfer::public_transfer(_coin, addr);
         };
         
         // Update balance to 0 as it is already paid
@@ -332,35 +335,6 @@ public fun settle_internal<T>(
     
     room.status = Status::Settled;
 }
-
-// public fun claim_internal<T>(
-//     room: &mut Room<T>,
-//     ctx: &mut TxContext,
-// ): Coin<T> {
-//     let player = tx_context::sender(ctx);
-    
-//     assert!(room.status == Status::Settled, ERoomNotSettled);
-    
-//     assert!(
-//         table::contains(&room.player_balances, player),
-//         EPlayerNotFound
-//     );
-    
-//     let amount = table::borrow_mut(&mut room.player_balances, player);
-//     let pool_balance = balance::value(&room.pool);
-
-//     assert!(*amount > 0, ENothingToClaim);
-//     assert!(*amount <= pool_balance, EInsufficientPoolBalance);
-    
-//     let claim_amount = *amount;
-//     *amount = 0u64;
-    
-//     // Return full balance (fees already deducted at start)
-//     coin::from_balance(
-//         balance::split(&mut room.pool, claim_amount),
-//         ctx
-//     )
-// }
 
 /// Get the current pool value for a room
 public fun get_pool_value<T>(room: &Room<T>): u64 {
@@ -400,6 +374,17 @@ entry fun add_whitelist<T>(
     }
 }
 
+entry fun remove_whitelist<T>(
+    config: &mut Config,
+    _: &AdminCap,
+    _ctx: &mut TxContext,
+) {
+    let type_name = type_name::with_defining_ids<T>();
+    if (table::contains(&config.whitelisted_tokens, type_name)) {
+        table::remove(&mut config.whitelisted_tokens, type_name);
+    }
+}
+
 entry fun create_room<T, G>(
     registry: &GameRegistry,
     config: &Config,
@@ -423,7 +408,13 @@ entry fun ready_to_play<T>(
     coin: Coin<T>,
     ctx: &mut TxContext
 ) {
-    ready_to_play_internal(room, coin, ctx);
+    let refund_coin = ready_to_play_internal(room, coin, ctx);
+    
+    if (coin::value(&refund_coin) > 0) {
+        transfer::public_transfer(refund_coin, ctx.sender());
+    } else {
+        coin::destroy_zero(refund_coin);
+    }
 }
 
 entry fun cancel_ready<T>(
@@ -453,21 +444,22 @@ entry fun settle<T>(
     settle_internal(room, addresses, amounts, game_cap, ctx);
 }
 
+// Helper function to merge multiple coins into one
+public fun merge<T>(
+    mut coins: vector<Coin<T>>,
+): Coin<T> {
+    assert!(!vector::is_empty(&coins), 0);
 
-// entry fun claim<T>(
-//     room: &mut Room<T>,
-//     ctx: &mut TxContext,
-// ) {
-//     let coin = claim_internal(room, ctx);
-//     transfer::public_transfer(coin, tx_context::sender(ctx));
-// }
+    let mut main_coin = vector::pop_back(&mut coins);
+    let main_balance = coin::balance_mut(&mut main_coin);
 
-#[test_only]
-public fun init_for_testing(ctx: &mut TxContext) {
-    init(ctx);
+    while (!vector::is_empty(&coins)) {
+        let sub_coin = vector::pop_back(&mut coins);
+        let sub_balance = coin::into_balance(sub_coin);
+        balance::join(main_balance, sub_balance);
+    };
+
+    vector::destroy_empty(coins);
+    main_coin
 }
 
-#[test_only]
-public fun get_room_creation_fee(config: &Config): u64 {
-    config.room_creation_fee
-}
