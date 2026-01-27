@@ -2,39 +2,16 @@
 # This file should be checked in.
 
 [move]
-version = 3
-manifest_digest = "5D75CEAF5A8E00012AA482631A6A324687F18279D1DB3E48A3D5CEF772E04748"
-deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
-dependencies = [
-  { id = "MoveStdlib", name = "MoveStdlib" },
-  { id = "One", name = "One" },
-]
-
-[[move.package]]
-id = "MoveStdlib"
-source = { git = "https://github.com/one-chain-labs/onechain.git", rev = "main", subdir = "crates/sui-framework/packages/move-stdlib" }
-
-[[move.package]]
-id = "One"
-source = { git = "https://github.com/one-chain-labs/onechain.git", rev = "main", subdir = "crates/sui-framework/packages/one-framework" }
-
-dependencies = [
-  { id = "MoveStdlib", name = "MoveStdlib" },
-]
-
-[move.toolchain-version]
-compiler-version = "1.1.1"
-edition = "2024.beta"
-flavor = "one"
+version = 4
 
 [pinned.testnet.MoveStdlib]
-source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "15a6c7b1f14c75ec1829a475172c41b5e6d31c85" }
+source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "c7bdbfd526f14b583eda57b18cdc14d8f390e826" }
 use_environment = "testnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
 
 [pinned.testnet.One]
-source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/one-framework", rev = "15a6c7b1f14c75ec1829a475172c41b5e6d31c85" }
+source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/one-framework", rev = "c7bdbfd526f14b583eda57b18cdc14d8f390e826" }
 use_environment = "testnet"
 manifest_digest = "7AFB66695545775FBFBB2D3078ADFD084244D5002392E837FDE21D9EA1C6D01C"
 deps = { MoveStdlib = "MoveStdlib" }
@@ -44,11 +21,3 @@ source = { root = true }
 use_environment = "testnet"
 manifest_digest = "656F502DE8AF855E2B0B9B3B65A5DC05E9078B188A28B12778A176CC40D97E41"
 deps = { MoveStdlib = "MoveStdlib", One = "One" }
-
-[env]
-
-[env.testnet]
-chain-id = "1bd5c965"
-original-published-id = "0xc971f316476fb1bf5d1c502e1bd7e45fa69dd00744953282db48d2385158d755"
-latest-published-id = "0xc971f316476fb1bf5d1c502e1bd7e45fa69dd00744953282db48d2385158d755"
-published-version = "1"
