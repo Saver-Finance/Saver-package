@@ -5,10 +5,11 @@ import { fromB64 } from '@onelabs/sui/utils';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const PACKAGE_ID = '0x6ffd8ab53a9b16ebda3f800b9cde5d95866f08a92349ac42ba605523f2950cb0';
-const ADMIN_CAP_ID = `0xf13cf85a4c8948d1463d5b6ab3b95c3626d948eee2ddcc8477b84d10857194d3`;
-const REGISTRY_ID = `0xf24a94ad4ec519858c675a0f0479aaa29868d72b7caee21a90a366787d4a52b8`;
-const CONFIG_ID = `0x8af6ea53c7e93bb3db8aa2d850125c06cf03c2b097fbb9e5245de2acbd0f9f32`;
+const PACKAGE_ID = '0x003ca0545af98073fc7f7a1c7b658fbcf758995a1ba7f427b78548a66a5ba45b';
+const ADMIN_CAP_ID = `0x751b5d91fef1673533bb8ed204ab880e234f3f783289be4a34fec59a6168c267`;
+const REGISTRY_ID = `0x8012d57ea196ff5586940f11cebd50cc5e5aaaa89c829f7a327834a8d05223b8`;
+const CONFIG_ID = `0x17e091685717bfeb89ee3d9290dd012f92ce5081648b710b3f1cd331d952d1b8`;
+const UPGRADE_CAP = `0x0dcaf0958b3daf7d06718a579e235caf68091451d64ac9acb97b20ee19ad62e3`;
 const GAME_TYPE = `${PACKAGE_ID}::gamehub::GameInfo`;
 
 const RPC_URL = 'https://rpc-testnet.onelabs.cc:443';

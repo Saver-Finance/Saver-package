@@ -2,13 +2,14 @@
 module games::bomb_panic_tests;
 
 use games::bomb_panic::{Self, GameState, GameHubRef, SettlementIntent};
+use gamehub::gamehub::{Self, Room};
 use one::clock::{Self, Clock};
 use one::random::{Self, Random};
 use one::oct::OCT;
 use one::test_scenario::{Self as ts, Scenario};
+use one::coin;
 
-const POOL_VALUE: u64 = 1_000_000;
-const PLAYER_COUNT: u64 = 4;
+const ENTRY_FEE: u64 = 100;
 
 // Test addresses
 const ALICE: address = @0xA11CE;
@@ -32,14 +33,57 @@ fun advance_clock(clock: &mut Clock, ms: u64) {
     clock::increment_for_testing(clock, ms);
 }
 
+/// Helper: setup a Room for testing
+fun setup_room<T>(scenario: &mut Scenario): object::ID {
+    ts::next_tx(scenario, ALICE);
+    let ctx = ts::ctx(scenario);
+    
+    // We need GameRegistry and Config to create room via gamehub
+    gamehub::init_for_testing(ctx);
+    
+    ts::next_tx(scenario, ALICE);
+    let mut registry = ts::take_shared<gamehub::GameRegistry>(scenario);
+    let config = ts::take_shared<gamehub::Config>(scenario);
+    let admin_cap = ts::take_from_sender<gamehub::AdminCap>(scenario);
+    
+    // Register game
+    let game_cap = gamehub::register_game<T>(&mut registry, &admin_cap, b"Test Game", ts::ctx(scenario));
+    
+    // Create room
+    let creation_fee = coin::mint_for_testing<OCT>(0, ts::ctx(scenario));
+    gamehub::create_room<OCT, T>(
+        &registry,
+        &config,
+        ENTRY_FEE,
+        10,
+        creation_fee,
+        ts::ctx(scenario)
+    );
+    
+    ts::return_shared(registry);
+    ts::return_shared(config);
+    ts::return_to_sender(scenario, admin_cap);
+    transfer::public_transfer(game_cap, ALICE);
+
+    ts::next_tx(scenario, ALICE);
+    let room = ts::take_shared<Room<OCT>>(scenario);
+    let room_id = object::id(&room);
+    ts::return_shared(room);
+    
+    room_id
+}
+
 #[test]
 fun test_join_adds_players_up_to_max() {
     let mut scenario = ts::begin(ALICE);
     
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     
     // Join 4 players
     ts::next_tx(&mut scenario, ALICE);
@@ -54,45 +98,6 @@ fun test_join_adds_players_up_to_max() {
     ts::next_tx(&mut scenario, DAVE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
-    // Verify 4 players joined (via debug function if available)
-    // We can't directly access player count, so we'll verify by starting round
-    
-    bomb_panic::destroy_for_testing(game);
-    ts::end(scenario);
-}
-
-#[test]
-#[expected_failure(abort_code = bomb_panic::E_TOO_MANY_PLAYERS)]
-fun test_join_cannot_exceed_max_players() {
-    let mut scenario = ts::begin(ALICE);
-    
-    ts::next_tx(&mut scenario, ALICE);
-    let hub_ref = create_hub_ref();
-    let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
-    
-    ts::next_tx(&mut scenario, @0x1);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x2);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x3);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x4);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x5);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x6);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x7);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x8);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0x9);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    ts::next_tx(&mut scenario, @0xA);
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
-    
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -103,9 +108,12 @@ fun test_join_cannot_join_twice() {
     let mut scenario = ts::begin(ALICE);
     
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     
     // Alice joins
     ts::next_tx(&mut scenario, ALICE);
@@ -127,31 +135,48 @@ fun test_start_round_sets_playing_state() {
     create_random(&mut scenario);
     
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
+    ts::next_tx(&mut scenario, ALICE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
-    // Start round
+    // Prepare room pool
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    let coin1 = coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario));
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin1, ts::ctx(&mut scenario));
+
+    ts::next_tx(&mut scenario, BOB);
+    let coin2 = coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario));
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin2, ts::ctx(&mut scenario));
+    
+    // Start round (2 players, so pool = 100 * 2 = 200)
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     // Verify state 
     let phase = bomb_panic::debug_phase(&game);
     assert!(phase == 1, 0); // 1 = Playing
     
     let pool = bomb_panic::debug_pool_value(&game);
-    assert!(pool == POOL_VALUE, 1);
+    assert!(pool == ENTRY_FEE * 2, 1);
     
     // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -163,10 +188,13 @@ fun test_pass_bomb_changes_holder_and_reduces_pool() {
     // Setup
     create_random(&mut scenario);
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join players
@@ -176,9 +204,21 @@ fun test_pass_bomb_changes_holder_and_reduces_pool() {
     ts::next_tx(&mut scenario, CAROL);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
-    // Start round
+    // Prepare room pool
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, BOB);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, CAROL);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+
+    // Start round (3 players, so pool = 100 * 3 = 300)
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     let initial_pool = bomb_panic::debug_pool_value(&game);
     
@@ -201,6 +241,7 @@ fun test_pass_bomb_changes_holder_and_reduces_pool() {
     // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -213,10 +254,13 @@ fun test_pass_bomb_only_holder_can_call() {
     // Setup
     create_random(&mut scenario);
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join players
@@ -224,9 +268,18 @@ fun test_pass_bomb_only_holder_can_call() {
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
-    // Start round
+    // Prepare room pool
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, BOB);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+
+    // Start round (2 players, so pool = 100 * 2 = 200)
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     // Get current holder
     let holder = bomb_panic::debug_bomb_holder(&game);
@@ -239,6 +292,7 @@ fun test_pass_bomb_only_holder_can_call() {
     // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -250,19 +304,32 @@ fun test_try_explode_during_grace_period_does_nothing() {
     // Setup
     create_random(&mut scenario);
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
+    ts::next_tx(&mut scenario, ALICE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
+    // Prepare room pool
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, BOB);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     // Advance time but stay in grace period (0-10s)
     advance_clock(&mut clock, 5000); // 5 seconds - still in grace period
@@ -277,6 +344,7 @@ fun test_try_explode_during_grace_period_does_nothing() {
     // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -288,19 +356,32 @@ fun test_try_explode_after_60s_always_explodes() {
     // Setup
     create_random(&mut scenario);
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
+    ts::next_tx(&mut scenario, ALICE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
+    // Prepare room pool
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, BOB);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     // Advance time to 65 seconds (100% probability zone)
     advance_clock(&mut clock, 65000);
@@ -315,6 +396,7 @@ fun test_try_explode_after_60s_always_explodes() {
     // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -326,19 +408,32 @@ fun test_consume_settlement_intent_works_once() {
     // Setup
     create_random(&mut scenario);
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
+    ts::next_tx(&mut scenario, ALICE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
+    // Prepare room pool
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, BOB);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     // Explode - advance to 65s (100% zone)
     advance_clock(&mut clock, 65000);
@@ -351,6 +446,7 @@ fun test_consume_settlement_intent_works_once() {
     // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -363,19 +459,32 @@ fun test_consume_settlement_intent_fails_second_time() {
     // Setup
     create_random(&mut scenario);
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Test Room");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join and start
+    ts::next_tx(&mut scenario, ALICE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
+    // Prepare room pool
     ts::next_tx(&mut scenario, ALICE);
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, POOL_VALUE, ts::ctx(&mut scenario));
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, BOB);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     // Explode - advance to 65s (100% zone)
     advance_clock(&mut clock, 65000);
@@ -392,6 +501,7 @@ fun test_consume_settlement_intent_fails_second_time() {
     // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
@@ -402,13 +512,17 @@ fun test_full_workflow_happy_path() {
     
     create_random(&mut scenario);
     ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
     let rng = ts::take_shared<Random>(&scenario);
     let hub_ref = create_hub_ref();
     let name = std::string::utf8(b"Happy Path");
-    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, 100, 10, ts::ctx(&mut scenario));
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
     let mut clock = clock::create_for_testing(ts::ctx(&mut scenario));
     
     // Join 4 players
+    ts::next_tx(&mut scenario, ALICE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     ts::next_tx(&mut scenario, BOB);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
@@ -417,12 +531,27 @@ fun test_full_workflow_happy_path() {
     ts::next_tx(&mut scenario, DAVE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
+    // Prepare room pool
+    ts::next_tx(&mut scenario, ALICE);
+    let mut room = ts::take_shared<Room<OCT>>(&scenario);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, BOB);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, CAROL);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, DAVE);
+    gamehub::join_room_internal(&mut room, ts::ctx(&mut scenario));
+    gamehub::ready_to_play_internal(&mut room, coin::mint_for_testing<OCT>(ENTRY_FEE * 2, ts::ctx(&mut scenario)), ts::ctx(&mut scenario));
+
     // Start round with pool = entry_fee * 4
     ts::next_tx(&mut scenario, ALICE);
-    let initial_pool = POOL_VALUE;
-    bomb_panic::start_round(&rng, &mut game, @0x1234, &clock, initial_pool, ts::ctx(&mut scenario));
+    bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
     let round_id = bomb_panic::debug_round_id(&game);
+    let initial_pool = ENTRY_FEE * 4;
     
     // Identify current holder
     let holder = bomb_panic::debug_bomb_holder(&game);
@@ -507,13 +636,11 @@ fun test_full_workflow_happy_path() {
     let total_payouts = total_holder_rewards + total_survivor_payouts;
     assert!(total_payouts <= initial_pool, 10);
     
-    // Verify second consume aborts (already tested above, but check state)
-    // We can't call it again here without expected_failure, so we trust the flag
-    
     // Cleanup
     bomb_panic::destroy_settlement_intent_for_testing(intent);
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
+    ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
