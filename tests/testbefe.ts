@@ -517,26 +517,25 @@ async function main() {
     console.log("⏳ Waiting 5s for indexing...");
     await new Promise(r => setTimeout(r, 5000));
 
-    // Step 3: Start Room (Admin/Backend)
+    // Step 3: Start Room (Player 1)
     console.log('\n--- Step 3: Start Room (GameHub) ---');
 
     let tx = new Transaction();
-    let adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-    let adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (adminGas) tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+    let p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+    let p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+    if (p1Gas) tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
 
     tx.moveCall({
         target: `${PACKAGE_ID}::gamehub::start_room`,
         arguments: [
             tx.object(testRoomId),
-            tx.object(adminCap),
             tx.object(config)
         ],
         typeArguments: [COIN_TYPE]
     });
     tx.setGasBudget(GAS_BUDGET);
 
-    await signAndExecute(adminKp, tx, "Start Room");
+    await signAndExecute(player1Kp, tx, "Start Room");
 
     console.log("⏳ Waiting 5s for indexing...");
     await new Promise(r => setTimeout(r, 5000));
@@ -550,8 +549,8 @@ async function main() {
     console.log('\n--- Step 4: Start Round (Bomb Panic) ---');
 
     tx = new Transaction();
-    adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-    adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+    let adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
+    let adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
     if (adminGas) tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
 
     tx.moveCall({

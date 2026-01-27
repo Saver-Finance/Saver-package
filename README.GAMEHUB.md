@@ -88,14 +88,13 @@ Cancels readiness and refunds the entry fee.
 
 ---
 
-### Game Server / Admin Functions
+### Game Server 
 
 #### `start_room<T>`
-Locks the room and changes status to `Started`. Validates that players are ready and fees are collected.
+Locks the room and changes status to `Started`. Validates that players are ready and fees are collected. **Can be called by any player in the room.**
 - **Generic Types**: `T`
 - **Arguments**:
   - `room`: `&mut Room<T>`
-  - `admin_cap`: `&AdminCap` (Required to authorize start)
   - `config`: `&Config` (For calculating insurance fees)
 
 #### `settle<T>`
@@ -140,3 +139,11 @@ Clears the room players and state after settlement, setting status back to `Wait
 | 17 | `EPoolNotEmpty` | Pool must be empty (e.g. for reset) |
 
 
+
+## 4. Game Type Reference
+
+### Bomb Panic
+- **Game Type Witness (G)**: 
+  ```move
+  0x37248427dc1d4b02503c716b8f16b9cf48893ce2f0d6746b9cfaceca65a16a1c::bomb_panic::GameState<0x2::oct::OCT>
+  ```

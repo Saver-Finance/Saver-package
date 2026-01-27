@@ -305,12 +305,12 @@ fun all_players_ready<T>(room: &Room<T>): bool {
 
 public fun start_room_internal<T> (
     room: &mut Room<T>,
-    _: &AdminCap,
     config: &Config,
     ctx: &mut TxContext,
 ) {
     assert!(room.status == Status::Waiting, ERoomCanNotStart);
     assert!(table::length(&room.player_balances) >= 2, ERoomCanNotStart);
+    assert!(table::contains(&room.player_balances, ctx.sender()), EPlayerNotFound);
     
     // Check all players are ready
     assert!(all_players_ready(room), ENotAllPlayersReady);
@@ -525,11 +525,10 @@ entry fun cancel_ready<T>(
 
 entry fun start_room<T>(
     room: &mut Room<T>,
-    admin_cap: &AdminCap,
     config: &Config,
     ctx: &mut TxContext,
 ) {
-    start_room_internal(room, admin_cap, config, ctx);
+    start_room_internal(room, config, ctx);
 }
 
 entry fun settle<T>(

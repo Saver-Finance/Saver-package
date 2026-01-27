@@ -171,10 +171,10 @@ async function runGameHubFlow() {
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::start_room`,
             typeArguments: [COIN_TYPE],
-            arguments: [tx.object(createdRoomId), tx.object(ADMIN_CAP_ID)],
+            arguments: [tx.object(createdRoomId), tx.object(CONFIG_ID)],
         });
 
-        await executeTransaction(adminKeypair, tx, "5. Admin Start Room");
+        await executeTransaction(player1Keypair, tx, "5. Player 1 Start Room");
     }
 
     {

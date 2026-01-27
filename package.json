@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test:integration": "ts-node tests/integration.test.ts",
-    "test:simple": "ts-node tests/bomb_panic_tests.ts"
+    "test:simple": "ts-node tests/bomb_panic_tests.ts",
+    "test:register_game": "ts-node tests/register_game.ts"
   },
   "keywords": [
     "sui",
@@ -23,7 +24,7 @@
     "vitest": "^3.0.8"
   },
   "dependencies": {
-    "bomb-panic-sdk": "^0.1.1",
+    "bomb-panic-sdk": "^0.1.4",
     "dotenv": "^17.2.3"
   }
 }

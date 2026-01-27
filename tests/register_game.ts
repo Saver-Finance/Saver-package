@@ -21,7 +21,9 @@ const COIN_TYPE = '0x2::oct::OCT';
 
 // ============================================================================
 
-const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY;
+const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY || process.env.ADMIN;
+
+const GAME_TYPE = `${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`;
 
 // ============================================================================
 // Script
@@ -31,6 +33,7 @@ const client = new SuiClient({ url: RPC_URL });
 
 async function registerGame() {
     console.log('🔐 Registering Bomb Panic game with GameHub...\n');
+    console.log(GAME_TYPE);
 
     const adminKeypair = Ed25519Keypair.fromSecretKey(decodeSuiPrivateKey(ADMIN_PRIVATE_KEY!).secretKey);
     const adminAddress = adminKeypair.getPublicKey().toSuiAddress();
@@ -49,8 +52,10 @@ async function registerGame() {
             tx.object(ADMIN_CAP!),
             tx.pure.vector('u8', Array.from(new TextEncoder().encode('Bomb Panic'))),
         ],
-        typeArguments: [`${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`],
+        typeArguments: [GAME_TYPE],
     });
+    // console.log(gameCap);
+
     // set admin as game cap 
     tx.transferObjects([gameCap], adminAddress);
 
