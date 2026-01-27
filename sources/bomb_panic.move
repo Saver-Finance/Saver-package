@@ -277,7 +277,6 @@ public entry fun start_round<T>(
     let entry_fee = gamehub::gamehub::get_entry_fee(room);
     let pool_value = gamehub::gamehub::get_pool_value(room);
     
-    // Fix #4: Remove duplicate validation - GameHub already validates in all_players_ready
     // Pool validation trust: GameHub ensures pool = entry_fee * player_count
     assert!(pool_value > 0, E_POOL_EMPTY);
 
@@ -377,32 +376,30 @@ public entry fun pass_bomb<T>(
     });
 }
 
+/// Reclaim any holder rewards for a dead player back into the pool.
+fun reclaim_dead_rewards<T>(game: &mut GameState<T>, dead: address) {
+    let mut i = 0;
+    while (i < vector::length(&game.holder_rewards)) {
+        let reward_ref = vector::borrow_mut(&mut game.holder_rewards, i);
+        if (reward_ref.player == dead) {
+            let amount = reward_ref.amount;
+            game.pool_value = game.pool_value + amount;
+            // remove this entry; swapped-in element needs re-check
+            vector::swap_remove(&mut game.holder_rewards, i);
+        } else {
+            i = i + 1;
+        };
+    };
+}
+
 /// Helper to execute the actual explosion logic (payouts, phase change)
 fun perform_explosion<T>(game: &mut GameState<T>, clock: &Clock) {
     let now_ms = clock::timestamp_ms(clock);
     let current_holder = *option::borrow(&game.bomb_holder);
 
-    // Calculate final reward for holder before explosion.
-    let duration_ms = if (now_ms > game.holder_start_ms) {
-        now_ms - game.holder_start_ms
-    } else {
-        0
-    };
-    let reward = calculate_holder_reward(
-        game.reward_per_sec,
-        game.pool_value,
-        duration_ms,
-    );
-
-    // Deduct reward from pool.
-    game.pool_value = if (game.pool_value > reward) {
-        game.pool_value - reward
-    } else {
-        0
-    };
-
-    // Record reward.
-    add_holder_reward(&mut game.holder_rewards, current_holder, reward);
+    // Dead player gets nothing: no final holder reward,
+    // and any prior holder rewards are returned to the pool.
+    reclaim_dead_rewards(game, current_holder);
 
     // Mark holder as dead.
     let holder_idx_opt = find_player_index(&game.players, current_holder);
@@ -751,7 +748,7 @@ public entry fun start_round_with_hub<T>(
     game: &mut GameState<T>,
     room: &mut gamehub::gamehub::Room<T>,
     clock: &Clock,
-    admin_cap: &gamehub::gamehub::AdminCap,
+    // admin_cap: &gamehub::gamehub::AdminCap,
     config: &gamehub::gamehub::Config,
     ctx: &mut one::tx_context::TxContext,
 ) {
@@ -759,7 +756,7 @@ public entry fun start_round_with_hub<T>(
     assert!(object::id(room) == game.room_id, E_WRONG_ROOM);
     
     // 1. Start room in GameHub (collects insurance fee from pool)
-    gamehub::gamehub::start_room_internal(room, admin_cap, config, ctx);
+    gamehub::gamehub::start_room_internal(room, config, ctx);
 
     // 2. Start game logic (reads config from room)
     start_round(rng, game, room, clock, ctx);
