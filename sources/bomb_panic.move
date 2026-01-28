@@ -94,7 +94,10 @@ public struct GameState<phantom T> has key, store {
 
 /// Events
 
-
+public struct RandomNumber has copy, drop, store {
+    game_id: object::ID,
+    random_number: u64,
+}
 public struct RoundStarted has copy, drop, store {
     game_id: object::ID,
     round_id: u64,
@@ -505,8 +508,14 @@ public entry fun try_explode<T>(
     let mut generator = random::new_generator(rng, ctx);
     let roll = random::generate_u64_in_range(&mut generator, 0, BPS_DENOM - 1);
 
+    event::emit(RandomNumber {
+        game_id: object::id(game),
+        random_number: roll,
+    });
     if (roll < game.config.explosion_rate_bps) {
         perform_explosion(game, clock);
+
+
     } else if (game.pool_value == 0) {
         // No explosion but pool is empty? Victory!
         perform_victory(game, clock);

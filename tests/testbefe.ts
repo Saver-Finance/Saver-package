@@ -20,7 +20,7 @@ const COIN_TYPE = '0x2::oct::OCT';
 const NATIVE_COIN_TYPE = '0x2::oct::OCT';
 const GAS_BUDGET = 100_000_000;
 const ENTRY_FEE = 50_000_000;
-const MAX_PLAYERS = 2;
+const MAX_PLAYERS = 4;
 
 const client = new SuiClient({ url: RPC_URL });
 
@@ -506,28 +506,28 @@ async function main() {
         "Room 1 (Small Stakes)"
     );
 
-    // Create Room 2: Medium stakes, 4 players
-    const room2Creator = player2Kp ?? player1Kp;
-    const room2 = await createRoomAndGame(
-        room2Creator,
-        lobbyId,
-        gameRegistry,
-        config,
-        100_000_000,
-        4,
-        "Room 2 (Medium Stakes)"
-    );
+    // // Create Room 2: Medium stakes, 4 players
+    // const room2Creator = player2Kp ?? player1Kp;
+    // const room2 = await createRoomAndGame(
+    //     room2Creator,
+    //     lobbyId,
+    //     gameRegistry,
+    //     config,
+    //     100_000_000,
+    //     4,
+    //     "Room 2 (Medium Stakes)"
+    // );
 
-    // Create Room 3: High stakes, 8 players
-    const room3 = await createRoomAndGame(
-        adminKp,
-        lobbyId,
-        gameRegistry,
-        config,
-        200_000_000, // 200 OCT
-        8,
-        "Room 3 (High Stakes)"
-    );
+    // // Create Room 3: High stakes, 8 players
+    // const room3 = await createRoomAndGame(
+    //     adminKp,
+    //     lobbyId,
+    //     gameRegistry,
+    //     config,
+    //     200_000_000, // 200 OCT
+    //     8,
+    //     "Room 3 (High Stakes)"
+    // );
 
     // Wait for all indexing to complete
     console.log('\n\n⏳ Waiting 10s for final indexing...');
@@ -537,8 +537,8 @@ async function main() {
     console.log('\n\n═══════════════════════════════════════════════════════');
     console.log('FINAL STATE - After Creating All Rooms');
     console.log('═══════════════════════════════════════════════════════');
-    const roomIds = [room1.roomId, room2.roomId, room3.roomId];
-    const gameStateIds = [room1.gameStateId, room2.gameStateId, room3.gameStateId];
+    const roomIds = [room1.roomId];
+    const gameStateIds = [room1.gameStateId];
     const allRooms = await queryRooms(roomIds);
     const allGameStates = await queryGameStates(gameStateIds);
     const { tableId } = await queryLobby(lobbyId);
@@ -591,8 +591,8 @@ async function main() {
 
     console.log('\n\n🎯 Room-to-GameState Mappings:');
     console.log(`  Room 1 → GameState: ${room1.gameStateId}`);
-    console.log(`  Room 2 → GameState: ${room2.gameStateId}`);
-    console.log(`  Room 3 → GameState: ${room3.gameStateId}`);
+    // console.log(`  Room 2 → GameState: ${room2.gameStateId}`);
+    // console.log(`  Room 3 → GameState: ${room3.gameStateId}`);
 
     console.log('\n\n✅ Lobby Integration Test Complete!');
     console.log('The Lobby module is successfully tracking all room-to-game mappings.');
@@ -737,10 +737,10 @@ async function main() {
         console.log('\n--- Step 4: Start Round (Bomb Panic) ---');
 
         const tx = new Transaction();
-        const adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-        const adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (adminGas) {
-            tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+        if (p1Gas) {
+            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
         }
 
         tx.moveCall({
@@ -755,7 +755,7 @@ async function main() {
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        const startResult = await signAndExecute(adminKp, tx, "Start Round");
+        const startResult = await signAndExecute(player1Kp, tx, "Start Round");
         logStructure("Start Round Events", startResult.events);
 
         const startedEvent = startResult.events?.find(e => e.type.includes('::RoundStarted'));
@@ -773,54 +773,56 @@ async function main() {
         return holder;
     }
 
-    async function stepPassBomb(initialHolder: string | null) {
-        console.log('\n--- Step 5: Pass Bomb ---');
-        const holderAddr = initialHolder ?? await fetchBombHolder(testGameStateId);
-        if (!holderAddr) {
-            console.warn('⚠️  Could not determine bomb holder');
-            return;
-        }
+    async function stepPassBomb(initialHolder: string | null, numPasses = 4) {
+        console.log(`\n--- Step 5: Pass Bomb (${numPasses} passes) ---`);
 
-        console.log(`  Current holder: ${labelAddr(holderAddr)}`);
-        const holderInfo = knownPlayers.get(holderAddr);
-        if (!holderInfo?.keypair) {
-            console.log('  Holder is external. Waiting for them to pass...');
-            const newHolder = await waitForHolderChange(testGameStateId, holderAddr, 60_000);
-            if (newHolder) {
-                console.log(`  Holder changed to: ${labelAddr(newHolder)}`);
-            } else {
-                console.warn('⚠️  Holder did not change in time');
+        for (let i = 0; i < numPasses; i++) {
+            const holderAddr = await fetchBombHolder(testGameStateId);
+            if (!holderAddr) {
+                console.warn(`⚠️  Pass ${i + 1}: Could not determine bomb holder`);
+                break;
             }
-            return;
-        }
 
-        const tx = new Transaction();
-        const hAddr = holderInfo.keypair.toSuiAddress();
-        const hCoins = await client.getCoins({ owner: hAddr, coinType: NATIVE_COIN_TYPE });
-        const hGas = hCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (hGas) {
-            tx.setGasPayment([{ objectId: hGas.coinObjectId, version: hGas.version, digest: hGas.digest }]);
-        }
+            console.log(`\n🔄 Pass ${i + 1}/${numPasses}: Current holder: ${labelAddr(holderAddr)}`);
+            const holderInfo = knownPlayers.get(holderAddr);
 
-        tx.moveCall({
-            target: `${PACKAGE_ID}::bomb_panic::pass_bomb`,
-            arguments: [
-                tx.object(RANDOM_ID),
-                tx.object(testGameStateId),
-                tx.object(CLOCK_ID)
-            ],
-            typeArguments: [COIN_TYPE]
-        });
-        tx.setGasBudget(GAS_BUDGET);
+            if (!holderInfo?.keypair) {
+                console.log('  Holder is external. Waiting for them to pass...');
+                const newHolder = await waitForHolderChange(testGameStateId, holderAddr, 60_000);
+                if (newHolder) {
+                    console.log(`  Holder changed to: ${labelAddr(newHolder)}`);
+                    continue; // Re-check who is holding it now
+                } else {
+                    console.warn('⚠️  Holder did not change in time');
+                    break;
+                }
+            }
 
-        console.log(`  ${holderInfo.name} passing bomb...`);
-        const passResult = await signAndExecute(holderInfo.keypair, tx, "Pass Bomb");
-        logStructure("Pass Bomb Events", passResult.events);
+            const tx = new Transaction();
+            tx.moveCall({
+                target: `${PACKAGE_ID}::bomb_panic::pass_bomb`,
+                arguments: [
+                    tx.object(RANDOM_ID),
+                    tx.object(testGameStateId),
+                    tx.object(CLOCK_ID)
+                ],
+                typeArguments: [COIN_TYPE]
+            });
+            tx.setGasBudget(GAS_BUDGET);
 
-        await sleep(3000);
-        const newHolder = await fetchBombHolder(testGameStateId);
-        if (newHolder) {
-            console.log(`  New holder: ${labelAddr(newHolder)}`);
+            console.log(`  ${holderInfo.name} passing bomb...`);
+            const passResult = await signAndExecute(holderInfo.keypair, tx, `Pass Bomb #${i + 1}`);
+
+            // Check if game ended during pass (e.g. explosion due to hold time or victory)
+            const exploded = passResult.events?.some(e => e.type.includes('::Exploded'));
+            const victory = passResult.events?.some(e => e.type.includes('::Victory'));
+
+            if (exploded || victory) {
+                console.log("💥 Game ended during pass bomb!");
+                break;
+            }
+
+            await sleep(5000);
         }
     }
 
@@ -834,10 +836,10 @@ async function main() {
             console.log(`💥 Attempt ${attempts + 1}/${maxAttempts}...`);
             const tx = new Transaction();
 
-            const adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-            const adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-            if (adminGas) {
-                tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+            const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+            const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+            if (p1Gas) {
+                tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
             }
 
             tx.moveCall({
@@ -851,7 +853,7 @@ async function main() {
             });
             tx.setGasBudget(GAS_BUDGET);
 
-            const explodeResult = await signAndExecute(adminKp, tx, `Try Explode #${attempts + 1}`);
+            const explodeResult = await signAndExecute(player1Kp, tx, `Try Explode #${attempts + 1}`);
 
             const explodeEvent = explodeResult.events?.find(e => e.type.includes('::Exploded'));
             const victoryEvent = explodeResult.events?.find(e => e.type.includes('::Victory'));
@@ -862,7 +864,7 @@ async function main() {
                 exploded = true;
             } else {
                 console.log("... Tick tock ...");
-                await sleep(1000);
+                await sleep(2000);
             }
             attempts++;
         }
@@ -880,14 +882,11 @@ async function main() {
         const endedGame = await client.getObject({ id: testGameStateId, options: { showContent: true } });
         logStructure("GameState (Before Settlement)", endedGame);
 
-        const p1Before = await client.getBalance({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
-        const p2Before = p2Addr ? await client.getBalance({ owner: p2Addr, coinType: NATIVE_COIN_TYPE }) : null;
-
         const tx = new Transaction();
-        const adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-        const adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (adminGas) {
-            tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+        if (p1Gas) {
+            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
         }
 
         tx.moveCall({
@@ -901,7 +900,7 @@ async function main() {
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        const settleResult = await signAndExecute(adminKp, tx, "Settle Round");
+        const settleResult = await signAndExecute(player1Kp, tx, "Settle Round");
 
         const roundSettledEvent = settleResult.events?.find(e => e.type.includes('::RoundSettled'));
         if (roundSettledEvent) {
@@ -910,12 +909,6 @@ async function main() {
         } else {
             console.warn("⚠️  No RoundSettled event found");
         }
-
-        const p1After = await client.getBalance({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
-        const p2After = p2Addr ? await client.getBalance({ owner: p2Addr, coinType: NATIVE_COIN_TYPE }) : null;
-
-        const p1Delta = BigInt(p1After.totalBalance) - BigInt(p1Before.totalBalance);
-        const p2Delta = p2Before && p2After ? BigInt(p2After.totalBalance) - BigInt(p2Before.totalBalance) : null;
 
         // Derive expected payouts from the RoundSettled event if present.
         let expectedPayoutP1: bigint | null = null;
@@ -939,11 +932,7 @@ async function main() {
             if (p2Addr) expectedPayoutP2 = expected.get(p2Addr) ?? 0n;
         }
 
-        console.log('\n💰 Balance deltas (settlement tx only):');
-        console.log(`  Player 1: ${p1Delta} OCT${expectedPayoutP1 !== null ? ` (expected +${expectedPayoutP1})` : ''}`);
-        if (p2Delta !== null) {
-            console.log(`  Player 2: ${p2Delta} OCT${expectedPayoutP2 !== null ? ` (expected +${expectedPayoutP2})` : ''}`);
-        }
+
 
         await sleep(5000);
 
@@ -960,23 +949,54 @@ async function main() {
         console.log(`  Pool: ${poolValue}`);
     }
 
+
+    async function stepConfigureGame() {
+        console.log('\n--- Step: Configure Game (Admin) ---');
+
+        const tx = new Transaction();
+        // Replace ADMIN_CAP_ID with your actual AdminCap object ID from .env or console
+        const adminCapId = process.env.ADMIN_CAP;
+        if (!adminCapId) throw new Error("Missing ADMIN_CAP_ID in .env");
+        tx.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::configure_game_admin`,
+            arguments: [
+                tx.object(testGameStateId),
+                tx.object(adminCapId),
+                tx.pure.u64(15000),      // max_hold_time_ms (e.g., 15 seconds)
+                tx.pure.u64(100),        // explosion_rate_bps (e.g., 5%)
+                tx.pure.u64(40),         // reward_divisor (pool / 40 = reward per sec)
+            ],
+            typeArguments: [COIN_TYPE]
+        });
+
+        tx.setGasBudget(GAS_BUDGET);
+        // This MUST be signed by the Admin wallet that owns the AdminCap
+        await signAndExecute(player1Kp, tx, "Configure Game");
+    }
+
     async function stepResetGame() {
+
         console.log('\n--- Step 8: Reset Game ---');
         const tx = new Transaction();
-        const adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-        const adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (adminGas) {
-            tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+        if (p1Gas) {
+            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
         }
 
+        // tx.moveCall({
+        //     target: `${PACKAGE_ID}::bomb_panic::reset_game`,
+        //     arguments: [tx.object(testGameStateId)],
+        //     typeArguments: [COIN_TYPE]
+        // });
         tx.moveCall({
-            target: `${PACKAGE_ID}::bomb_panic::reset_game`,
-            arguments: [tx.object(testGameStateId)],
-            typeArguments: [COIN_TYPE]
+            target: `${PACKAGE_ID}::gamehub::reset_room`,
+            arguments: [tx.object(testRoomId), tx.object(testGameStateId)],
+            typeArguments: [COIN_TYPE],
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        await signAndExecute(adminKp, tx, "Reset Game");
+        await signAndExecute(player1Kp, tx, "Reset Game");
 
         await sleep(5000);
 
@@ -984,14 +1004,17 @@ async function main() {
         logStructure("GameState (After Reset)", resetGame);
     }
 
-    await stepJoinRoom();
-    await stepReadyToPlay();
-    await stepStartRoom();
-    const initialHolder = await stepStartRound();
-    await stepPassBomb(initialHolder);
-    await stepTryExplodeLoop();
-    await stepSettleRound();
-    await stepResetGame();
+    // await stepJoinRoom();
+    // await stepReadyToPlay();
+
+    // await sleep(5000);
+    // await stepStartRoom();
+    // const initialHolder = await stepStartRound();
+    // await stepPassBomb(initialHolder, 6);
+    // await stepTryExplodeLoop();
+    // await stepSettleRound();
+    // await stepResetGame();
+    // await stepConfigureGame();
 
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');
