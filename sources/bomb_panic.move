@@ -11,7 +11,8 @@ const BPS_DENOM: u64 = 10_000;
 /// Default flat explosion probability per second (300 bps = 3%)
 const DEFAULT_EXPLOSION_RATE_BPS: u64 = 300;
 /// Max time a single player can hold the bomb (anti-camping).
-const MAX_HOLD_TIME_MS: u64 = 10_000;
+const DEFAULT_MAX_HOLD_TIME_MS: u64 = 10_000;
+const DEFAULT_REWARD_DIVISOR: u64 = 60;
 
 /// Error codes.
 const E_WRONG_PHASE: u64 = 1;
@@ -24,6 +25,8 @@ const E_NOT_JOINED: u64 = 9;
 const E_SETTLEMENT_NOT_CONSUMED: u64 = 10;
 const E_NOT_ENOUGH_PLAYERS: u64 = 11;
 const E_WRONG_ROOM: u64 = 14;
+const E_INVALID_REWARD_DIVISOR: u64 = 15;
+const E_INVALID_BPS: u64 = 16;
 
 /// Phase enum for round lifecycle.
 public enum GamePhase has copy, drop, store {
@@ -60,6 +63,7 @@ public struct SettlementIntent has drop, store {
 }
 /// Round settled event.
 public struct RoundSettled has copy, drop, store {
+    game_id: object::ID,
     round_id: u64,
     dead_player: address,
     survivors: vector<address>,
@@ -84,20 +88,22 @@ public struct GameState<phantom T> has key, store {
     hub_ref: GameHubRef,
     room_id: object::ID, //  room binding
     round_start_ms: u64,
-    reward_per_sec: u64, // Fixed reward amount per second (pool/60)
-    explosion_rate_bps: u64, // Flat explosion probability in basis points (default 300 = 3%)
+    reward_per_sec: u64, 
+    config: GameConfig,
 }
 
-/// Events.
+/// Events
 
 
 public struct RoundStarted has copy, drop, store {
+    game_id: object::ID,
     round_id: u64,
     bomb_holder: address,
     pool_value: u64,
 }
 
 public struct BombPassed has copy, drop, store {
+    game_id: object::ID,
     round_id: u64,
     from: address,
     to: address,
@@ -108,6 +114,7 @@ public struct BombPassed has copy, drop, store {
 
 
 public struct Exploded has copy, drop, store {
+    game_id: object::ID,
     round_id: u64,
     dead_player: address,
     now_ms: u64,
@@ -115,12 +122,14 @@ public struct Exploded has copy, drop, store {
 }
 
 public struct PlayerExited has copy, drop, store {
+    game_id: object::ID,
     round_id: u64,
     player: address,
     phase: GamePhase,
 }
 
 public struct Victory has copy, drop, store {
+    game_id: object::ID,
     round_id: u64,
     winner: address,
     now_ms: u64,
@@ -138,6 +147,12 @@ public struct RoomAndGameCreated has copy, drop, store {
     entry_fee: u64,
     max_players: u8,
 }
+public struct GameConfig has copy, drop, store {
+    max_hold_time_ms: u64,
+    explosion_rate_bps: u64,
+    reward_divisor: u64,
+}
+
 
 /// Create game state bound to hub.
 public fun create_game_state<T>(
@@ -162,18 +177,39 @@ public fun create_game_state<T>(
         room_id,
         round_start_ms: 0,
         reward_per_sec: 0, // Will be calculated at start_round
-        explosion_rate_bps: DEFAULT_EXPLOSION_RATE_BPS,
+        config: GameConfig {
+            max_hold_time_ms: DEFAULT_MAX_HOLD_TIME_MS,
+            explosion_rate_bps: DEFAULT_EXPLOSION_RATE_BPS,
+            reward_divisor: DEFAULT_REWARD_DIVISOR,
+        },
     }
 }
 
+public entry fun configure_game_admin<T>(
+    game: &mut GameState<T>,
+    _admin_cap: &gamehub::gamehub::AdminCap,
+    max_hold_time_ms: u64,
+    explosion_rate_bps: u64,
+    reward_divisor: u64,
+) {
+    assert!(is_waiting(&game.phase), E_WRONG_PHASE);
+    assert!(reward_divisor > 0, E_INVALID_REWARD_DIVISOR);
+    assert!(explosion_rate_bps <= BPS_DENOM, E_INVALID_BPS);
+
+    game.config.max_hold_time_ms = max_hold_time_ms;
+    game.config.explosion_rate_bps = explosion_rate_bps;
+    game.config.reward_divisor = reward_divisor;
+}
 /// Create a GameState for an existing Room and register in Lobby
 /// Frontend should call this with creating a room via GameHub  in the same PTB
 public entry fun create_game_for_room<T>(
     lobby: &mut gamehub::lobby::Lobby,
-    room_id: address,
+    room: &gamehub::gamehub::Room<T>,
     ctx: &mut one::tx_context::TxContext
 ) {
-    let room_obj_id = object::id_from_address(room_id);
+    let room_obj_id = object::id(room);
+    let entry_fee = gamehub::gamehub::get_entry_fee(room);
+    let max_players = gamehub::gamehub::get_max_players(room);
     
     // Create GameState for this room
     let hub_ref = GameHubRef { id: object::id_from_address(@0x0) }; // Placeholder
@@ -193,8 +229,8 @@ public entry fun create_game_for_room<T>(
         room_id: room_obj_id,
         game_id,
         creator: one::tx_context::sender(ctx),
-        entry_fee: 0, // Will be read from room at start_round
-        max_players: 0, // Will be read from room
+        entry_fee,
+        max_players,
     });
     
     // Share GameState
@@ -253,6 +289,7 @@ public entry fun leave<T>(
     };
 
     event::emit(PlayerExited {
+        game_id: object::id(game),
         round_id: game.round_id,
         player: sender,
         phase: game.phase,
@@ -293,7 +330,7 @@ public entry fun start_round<T>(
     game.entry_fee_per_player = entry_fee;
 
     // Calculate fixed reward per second (pool / 60)
-    game.reward_per_sec = pool_value / 60;
+    game.reward_per_sec =  pool_value / game.config.reward_divisor;
 
     game.bomb_holder = option::some(initial_holder);
     game.holder_start_ms = now_ms;
@@ -303,6 +340,7 @@ public entry fun start_round<T>(
     game.phase = GamePhase::Playing;
 
     event::emit(RoundStarted {
+        game_id: object::id(game),
         round_id: game.round_id,
         bomb_holder: initial_holder,
         pool_value,
@@ -325,7 +363,7 @@ public entry fun pass_bomb<T>(
     let now_ms = clock::timestamp_ms(clock);
 
     // Check for Max Hold Time Violation
-    if (now_ms > game.holder_start_ms && (now_ms - game.holder_start_ms > MAX_HOLD_TIME_MS)) {
+    if (now_ms > game.holder_start_ms && (now_ms - game.holder_start_ms >game.config.max_hold_time_ms)) {
         // Player held too long! Force explosion immediately.
         perform_explosion(game, clock);
         return
@@ -367,6 +405,7 @@ public entry fun pass_bomb<T>(
     game.holder_start_ms = now_ms;
 
     event::emit(BombPassed {
+        game_id: object::id(game),
         round_id: game.round_id,
         from: current_holder,
         to: next_holder,
@@ -414,6 +453,7 @@ fun perform_explosion<T>(game: &mut GameState<T>, clock: &Clock) {
     game.bomb_holder = option::none();
 
     event::emit(Exploded {
+        game_id: object::id(game),
         round_id: game.round_id,
         dead_player: current_holder,
         now_ms,
@@ -434,6 +474,7 @@ fun perform_victory<T>(game: &mut GameState<T>, clock: &Clock) {
     game.bomb_holder = option::none();
 
     event::emit(Victory {
+        game_id: object::id(game),
         round_id: game.round_id,
         winner: @0x0, // No single winner - everyone survived
         now_ms,
@@ -449,24 +490,22 @@ public entry fun try_explode<T>(
     rng: &Random,
     ctx: &mut one::tx_context::TxContext,
 ) {
-    // Already ended, no-op.
-    if (is_ended(&game.phase)) return;
-
+    
     assert!(is_playing(&game.phase), E_WRONG_PHASE);
 
     let now_ms = clock::timestamp_ms(clock);
 
     // Check if held too long- Force explode
-    if (now_ms > game.holder_start_ms && (now_ms - game.holder_start_ms > MAX_HOLD_TIME_MS)) {
+    if (now_ms > game.holder_start_ms && (now_ms - game.holder_start_ms > game.config.max_hold_time_ms)) {
         perform_explosion(game, clock);
         return
     };
 
-    // Flat explosion probability per check (default 3%)
+    // Flat explosion probability per check 
     let mut generator = random::new_generator(rng, ctx);
     let roll = random::generate_u64_in_range(&mut generator, 0, BPS_DENOM - 1);
 
-    if (roll < game.explosion_rate_bps) {
+    if (roll < game.config.explosion_rate_bps) {
         perform_explosion(game, clock);
     } else if (game.pool_value == 0) {
         // No explosion but pool is empty? Victory!
@@ -772,6 +811,8 @@ public entry fun settle_round_with_hub<T>(
     game_cap: &gamehub::gamehub::GameCap,
     ctx: &mut one::tx_context::TxContext,
 ) {
+    assert!(object::id(room) == game.room_id, E_WRONG_ROOM);
+
     // 1. Get settlement data from Bomb Panic (doesn't consume yet)
     let (addresses, amounts, _pool) = get_settlement_data(game);
 
@@ -779,6 +820,7 @@ public entry fun settle_round_with_hub<T>(
     let intent = consume_settlement_intent(game);
 
     event::emit(RoundSettled {
+        game_id: object::id(game),
         round_id: intent.round_id,
         dead_player: intent.dead_player,
         survivors: intent.survivors,
@@ -848,7 +890,7 @@ public fun destroy_for_testing<T>(game: GameState<T>) {
         room_id: _,
         round_start_ms: _,
         reward_per_sec: _,
-        explosion_rate_bps: _,
+        config: _,
     } = game;
     object::delete(id);
 }

@@ -2,7 +2,30 @@
 # This file should be checked in.
 
 [move]
-version = 4
+version = 3
+manifest_digest = "DE5F0F04697F62BF4EA6DB9BB21BBE34E1699C2790F8B94470873FD53412E1CD"
+deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
+dependencies = [
+  { id = "MoveStdlib", name = "MoveStdlib" },
+  { id = "One", name = "One" },
+]
+
+[[move.package]]
+id = "MoveStdlib"
+source = { git = "https://github.com/one-chain-labs/onechain.git", rev = "main", subdir = "crates/sui-framework/packages/move-stdlib" }
+
+[[move.package]]
+id = "One"
+source = { git = "https://github.com/one-chain-labs/onechain.git", rev = "main", subdir = "crates/sui-framework/packages/one-framework" }
+
+dependencies = [
+  { id = "MoveStdlib", name = "MoveStdlib" },
+]
+
+[move.toolchain-version]
+compiler-version = "1.1.1"
+edition = "2024.beta"
+flavor = "one"
 
 [pinned.testnet.MoveStdlib]
 source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "c7bdbfd526f14b583eda57b18cdc14d8f390e826" }
@@ -26,6 +49,6 @@ deps = { MoveStdlib = "MoveStdlib", One = "One" }
 
 [env.testnet]
 chain-id = "1bd5c965"
-original-published-id = "0x8c0e896eca47e3010c8a3703052a59fc09e6a2e573d97597ea054f51ea6cdc96"
-latest-published-id = "0x8c0e896eca47e3010c8a3703052a59fc09e6a2e573d97597ea054f51ea6cdc96"
+original-published-id = "0x7d3d28d51c60c5dcb21d2deaeb4fd8eccbafe5657a0e022fe05246123bf5b928"
+latest-published-id = "0x7d3d28d51c60c5dcb21d2deaeb4fd8eccbafe5657a0e022fe05246123bf5b928"
 published-version = "1"
