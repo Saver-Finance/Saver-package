@@ -16,8 +16,8 @@ fun init(witness: SROCT, ctx: &mut TxContext) {
     let (treasury_cap, metadata) = coin::create_currency(
         witness,
         9,
-        b"SROCT",
-        b"SROCT",
+        b"AYOCT",
+        b"AYOCT",
         b"None",
         option::none(),
         ctx
