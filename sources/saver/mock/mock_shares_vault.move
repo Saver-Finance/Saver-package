@@ -6,6 +6,7 @@ use one::transfer::{Self};
 use one::oct::{OCT};
 use one::balance::{Self, Balance};
 use one::object::{Self, UID};
+use std::debug::{Self, print};
 
 
 public struct Vault<phantom U, phantom T> has key {
@@ -24,8 +25,8 @@ public fun create_vault<U, T>(
         id: object::new(ctx),
         treasury,
         oct_balance: balance::zero<U>(),
-        total_supply: 1,
-        total_deposited: 1
+        total_supply: 1000000000,
+        total_deposited: 1000000000
     };
     transfer::share_object(new_vault);
 }
@@ -52,6 +53,7 @@ public fun withdraw<U, T>(
 ): Coin<U> {
     let shares_amount = coin::value(&share_coin) as u128;
     let oct_receive = shares_amount * vault.total_deposited / vault.total_supply;
+    //print(&oct_receive);
     vault.total_deposited = vault.total_deposited - oct_receive;
     vault.total_supply = vault.total_supply - shares_amount;
     let oct_balance = balance::split(&mut vault.oct_balance, oct_receive as u64);

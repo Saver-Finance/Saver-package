@@ -103,6 +103,23 @@ public fun create_liquidate_limiter<U, T, S>(
     transfer::share_object(new_limiter);
 }
 
+public fun poke<U, T, S>(
+    config: &AdapterConfig,
+    minter: &mut Minter<S>,
+    user_info: &mut UserInfo<T, S>,
+    clock: &Clock,
+    mock_vault: &MockVault<U, T>,
+) {
+    let price = get_price(mock_vault);
+    saver::poke(
+        &config.adapter_cap,
+        minter,
+        user_info,
+        clock,
+        price
+    );
+}
+
 public fun deposit<U, T, S>(
     config: &AdapterConfig, 
     token_in: Coin<T>,
@@ -336,7 +353,7 @@ public fun liquidate<U, T, S> (
 
 public fun harvest<U, T, S>(
     config: &AdapterConfig,
-    ut: &mut UnderlyingToken<U, T ,S>,
+    ut: &UnderlyingToken<U, T ,S>,
     _: &KeeperCap,
     minter: &mut Minter<S>,
     vault: &mut Vault<T>,

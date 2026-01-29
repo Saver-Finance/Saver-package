@@ -105,9 +105,9 @@ public fun increase(
     amount: u128,
 ) {
     let value = get(limiter, clock);
+    assert!(value + (amount as u128) <= limiter.maximum, 0);
     limiter.last_value = value + (amount as u128); 
     limiter.last_udpate_time = clock::timestamp_ms(clock);
-
 }
 
 public fun get(limiter: &Limiter, clock: &Clock): u128 {
@@ -115,7 +115,8 @@ public fun get(limiter: &Limiter, clock: &Clock): u128 {
     if(elapsed == 0) {
         return limiter.last_value;
     };
-    let delta = (elapsed as u128) * limiter.rate / FIXED_POINT_SCALAR;
+    let delta_num: u256 = (elapsed as u256) * (limiter.rate as u256);
+    let delta = (delta_num / (FIXED_POINT_SCALAR as u256)) as u128; // always <= u128 because delta always <= u(64 + 128);
     let value = limiter.last_value + delta;
     min(value, limiter.maximum)
 }

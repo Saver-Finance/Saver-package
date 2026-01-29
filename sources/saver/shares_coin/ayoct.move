@@ -1,4 +1,4 @@
-module saver::sroct;
+module saver::ayoct;
 
 
 use one::coin::{Self, TreasuryCap, Coin};
@@ -7,11 +7,11 @@ use one::transfer::{Self};
 use one::oct::{OCT};
 use one::balance::{Self, Balance};
 
-public struct SROCT has drop {}
+public struct AYOCT has drop {}
 
 
 
-fun init(witness: SROCT, ctx: &mut TxContext) {
+fun init(witness: AYOCT, ctx: &mut TxContext) {
     let admin = ctx.sender();
     let (treasury_cap, metadata) = coin::create_currency(
         witness,
@@ -28,6 +28,6 @@ fun init(witness: SROCT, ctx: &mut TxContext) {
 
 #[test_only]
 public fun test_init(ctx: &mut TxContext) {
-    let witness = SROCT{};
+    let witness = AYOCT{};
     init(witness, ctx)
 }
