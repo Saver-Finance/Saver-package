@@ -953,6 +953,7 @@ async function main() {
     async function stepConfigureGame() {
         console.log('\n--- Step: Configure Game (Admin) ---');
 
+
         const tx = new Transaction();
         // Replace ADMIN_CAP_ID with your actual AdminCap object ID from .env or console
         const adminCapId = process.env.ADMIN_CAP;
@@ -962,9 +963,9 @@ async function main() {
             arguments: [
                 tx.object(testGameStateId),
                 tx.object(adminCapId),
-                tx.pure.u64(15000),      // max_hold_time_ms (e.g., 15 seconds)
+                tx.pure.u64(30000),      // max_hold_time_ms (e.g., 15 seconds)
                 tx.pure.u64(100),        // explosion_rate_bps (e.g., 5%)
-                tx.pure.u64(40),         // reward_divisor (pool / 40 = reward per sec)
+                tx.pure.u64(10),         // reward_divisor (pool / 40 = reward per sec)
             ],
             typeArguments: [COIN_TYPE]
         });
@@ -984,11 +985,11 @@ async function main() {
             tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
         }
 
-        // tx.moveCall({
-        //     target: `${PACKAGE_ID}::bomb_panic::reset_game`,
-        //     arguments: [tx.object(testGameStateId)],
-        //     typeArguments: [COIN_TYPE]
-        // });
+        tx.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::reset_game`,
+            arguments: [tx.object(testGameStateId)],
+            typeArguments: [COIN_TYPE]
+        });
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::reset_room`,
             arguments: [tx.object(testRoomId), tx.object(testGameStateId)],
@@ -1015,7 +1016,6 @@ async function main() {
     // await stepSettleRound();
     // await stepResetGame();
     // await stepConfigureGame();
-
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');
     console.log('════════════════════════════════════════════════════════════');
