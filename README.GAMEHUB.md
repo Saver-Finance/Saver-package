@@ -47,6 +47,14 @@ Before games can be played, the GameHub must be initialized and configured.
 
 ### User Functions
 
+#### `start_room<T>`
+Locks the room and changes status to `Started`. Validates that players are ready and fees are collected.
+- **Generic Types**: `T`
+- **Arguments**:
+  - `room`: `&mut Room<T>`
+  - `admin_cap`: `&AdminCap` (Required to authorize start)
+  - `config`: `&Config` (For calculating insurance fees)
+
 #### `create_room<T, G>`
 Creates a new game room.
 - **Generic Types**:
@@ -89,14 +97,6 @@ Cancels readiness and refunds the entry fee.
 ---
 
 ### Game Server / Admin Functions
-
-#### `start_room<T>`
-Locks the room and changes status to `Started`. Validates that players are ready and fees are collected.
-- **Generic Types**: `T`
-- **Arguments**:
-  - `room`: `&mut Room<T>`
-  - `admin_cap`: `&AdminCap` (Required to authorize start)
-  - `config`: `&Config` (For calculating insurance fees)
 
 #### `settle<T>`
 Distributes payouts based on game results. **Payouts are sent directly to the winner addresses; no claim step is required.**
