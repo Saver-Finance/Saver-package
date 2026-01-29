@@ -106,18 +106,16 @@ module gamehub::gamehub_tests {
             test_scenario::return_shared(room);
         };
 
-        // --- Step 7: Admin starts game (collects insurance fee) ---
-        next_tx(&mut scenario, ADMIN);
+        // --- Step 7: Player 1 starts game ---
+        next_tx(&mut scenario, PLAYER_1);
         {
             let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            let admin_cap = test_scenario::take_from_sender<AdminCap>(&scenario);
             let config = test_scenario::take_shared<Config>(&scenario);
 
-            gamehub::start_room(&mut room, &admin_cap, &config, ctx(&mut scenario));
+            gamehub::start_room(&mut room, &config, ctx(&mut scenario));
 
             test_scenario::return_shared(room);
             test_scenario::return_shared(config);
-            test_scenario::return_to_sender(&scenario, admin_cap);
         };
 
         // --- Step 8: Admin settles (Player 1 wins remaining pool) ---
@@ -303,17 +301,15 @@ module gamehub::gamehub_tests {
         };
 
         // Try to start - should fail
-        next_tx(&mut scenario, ADMIN);
+        next_tx(&mut scenario, PLAYER_1);
         {
             let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            let admin_cap = test_scenario::take_from_sender<AdminCap>(&scenario);
             let config = test_scenario::take_shared<Config>(&scenario);
 
-            gamehub::start_room(&mut room, &admin_cap, &config, ctx(&mut scenario));
+            gamehub::start_room(&mut room, &config, ctx(&mut scenario));
 
             test_scenario::return_shared(room);
             test_scenario::return_shared(config);
-            test_scenario::return_to_sender(&scenario, admin_cap);
         };
 
         test_scenario::end(scenario);

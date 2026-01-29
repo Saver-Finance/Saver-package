@@ -11,7 +11,7 @@ const RPC_URL = process.env.RPC_URL || 'https://rpc-testnet.onelabs.cc:443';
 const PACKAGE_ID = process.env.PACKAGE_ID;
 const LOBBY_ID = process.env.LOBBY_ID;
 const GAME_REGISTRY = process.env.GAME_REGISTRY;
-const ADMIN_CAP = process.env.ADMIN_CAP;
+const PLAYER_2_ADDRESS = process.env.PLAYER_2_ADDRESS;
 const CONFIG = process.env.CONFIG;
 const GAME_CAP_ID = process.env.GAME_CAP;
 const RANDOM_ID = process.env.RANDOM_ID || '0x8';
@@ -20,7 +20,7 @@ const COIN_TYPE = '0x2::oct::OCT';
 const NATIVE_COIN_TYPE = '0x2::oct::OCT';
 const GAS_BUDGET = 100_000_000;
 const ENTRY_FEE = 50_000_000;
-const MAX_PLAYERS = 2;
+const MAX_PLAYERS = 4;
 
 const client = new SuiClient({ url: RPC_URL });
 
@@ -76,6 +76,166 @@ function findCreatedObjectId(
             change.objectType.includes(typeSubstring)
     );
     return created?.objectId;
+}
+
+function sleep(ms: number) {
+    return new Promise((r) => setTimeout(r, ms));
+}
+
+function getMoveObjectContent(obj: any) {
+    const c = obj?.data?.content;
+    return c?.dataType === 'moveObject' ? c : undefined;
+}
+
+function extractTableId(content: any, fieldName: string): string | null {
+    return (
+        content?.fields?.[fieldName]?.fields?.id?.id ??
+        content?.fields?.[fieldName]?.id?.id ??
+        null
+    );
+}
+
+function extractDynFieldKeyAddress(content: any): string | null {
+    const n = content?.fields?.name;
+    const addr = n?.fields?.value ?? n?.value;
+    return typeof addr === 'string' ? addr : null;
+}
+
+function extractDynFieldNameValue(field: any): string | null {
+    const v = field?.value ?? field?.fields?.value;
+    return typeof v === 'string' ? v : null;
+}
+
+function extractBoolFieldValue(content: any): boolean {
+    const v = content?.fields?.value;
+    if (typeof v === 'boolean') return v;
+    const nested = v?.fields?.value ?? v?.value;
+    if (typeof nested === 'boolean') return nested;
+    if (typeof nested === 'string') return nested === 'true';
+    return false;
+}
+
+async function fetchTableAsMap<T>(
+    tableId: string,
+    parseValue: (moveObjectContent: any) => T
+): Promise<Map<string, T>> {
+    const page = await client.getDynamicFields({ parentId: tableId, limit: 200 });
+    const idToKey = new Map<string, string>();
+    const ids: string[] = [];
+    for (const d of page.data) {
+        const objectId = (d as any).objectId;
+        const key = extractDynFieldNameValue((d as any).name);
+        if (typeof objectId === 'string' && key) {
+            ids.push(objectId);
+            idToKey.set(objectId, key);
+        }
+    }
+    if (!ids.length) return new Map();
+
+    const objs = await client.multiGetObjects({
+        ids,
+        options: { showContent: true },
+    });
+
+    const out = new Map<string, T>();
+    for (const o of objs) {
+        const c = getMoveObjectContent(o);
+        if (!c) continue;
+        const objectId = o?.data?.objectId;
+        const key = typeof objectId === 'string' ? idToKey.get(objectId) : null;
+        if (!key) continue;
+        out.set(key, parseValue(c));
+    }
+
+    return out;
+}
+
+async function fetchReadyPlayers(roomId: string): Promise<Map<string, boolean>> {
+    const roomObj = await client.getObject({
+        id: roomId,
+        options: { showContent: true },
+    });
+    const roomContent = getMoveObjectContent(roomObj);
+    const readyTableId = extractTableId(roomContent, 'ready_players');
+    if (!readyTableId) return new Map();
+    return fetchTableAsMap<boolean>(readyTableId, extractBoolFieldValue);
+}
+
+function parseOptionAddress(optionField: any): string | null {
+    if (!optionField) return null;
+    const vec = optionField.vec ?? optionField.fields?.vec;
+    if (Array.isArray(vec) && vec.length > 0) return vec[0];
+    if (typeof optionField === 'string') return optionField;
+    return null;
+}
+
+function extractPlayersFromGame(content: any): string[] {
+    const players = content?.fields?.players;
+    if (!Array.isArray(players)) return [];
+    return players
+        .map((p: any) => p?.fields?.addr)
+        .filter((addr: any) => typeof addr === 'string') as string[];
+}
+
+async function fetchGameContent(gameStateId: string) {
+    const gameObj = await client.getObject({
+        id: gameStateId,
+        options: { showContent: true },
+    });
+    return getMoveObjectContent(gameObj);
+}
+
+async function fetchGamePlayers(gameStateId: string): Promise<string[]> {
+    const content = await fetchGameContent(gameStateId);
+    return extractPlayersFromGame(content);
+}
+
+async function fetchBombHolder(gameStateId: string): Promise<string | null> {
+    const content = await fetchGameContent(gameStateId);
+    return parseOptionAddress(content?.fields?.bomb_holder);
+}
+
+async function waitForPlayers(
+    gameStateId: string,
+    minPlayers: number,
+    timeoutMs = 60_000
+) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const players = await fetchGamePlayers(gameStateId);
+        if (players.length >= minPlayers) return players;
+        await sleep(2000);
+    }
+    return [];
+}
+
+async function waitForReadyCount(
+    roomId: string,
+    minReady: number,
+    timeoutMs = 60_000
+) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const ready = await fetchReadyPlayers(roomId);
+        const readyCount = Array.from(ready.values()).filter(Boolean).length;
+        if (readyCount >= minReady) return ready;
+        await sleep(2000);
+    }
+    return new Map<string, boolean>();
+}
+
+async function waitForHolderChange(
+    gameStateId: string,
+    currentHolder: string | null,
+    timeoutMs = 60_000
+) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const holder = await fetchBombHolder(gameStateId);
+        if (holder && holder !== currentHolder) return holder;
+        await sleep(2000);
+    }
+    return null;
 }
 
 // Query specific rooms by their IDs
@@ -165,7 +325,7 @@ async function queryGameStates(gameStateIds: string[]) {
 }
 
 // Query Lobby to verify room-to-game mappings
-async function queryLobby(lobbyId: string) {
+async function queryLobby(lobbyId: string): Promise<{ lobbyObj: any | null; tableId: string | null }> {
     console.log('\n🔎 Querying Lobby object...');
     try {
         const lobbyObj = await client.getObject({
@@ -173,9 +333,10 @@ async function queryLobby(lobbyId: string) {
             options: { showContent: true }
         });
 
+        let tableId: string | null = null;
         if (lobbyObj.data?.content && lobbyObj.data.content.dataType === 'moveObject') {
             const fields = lobbyObj.data.content.fields as any;
-            const tableId = fields.room_to_game?.fields?.id?.id;
+            tableId = fields.room_to_game?.fields?.id?.id ?? null;
 
             console.log(`\n📋 Lobby Details:`);
             console.log(`  Lobby ID: ${lobbyId}`);
@@ -184,10 +345,10 @@ async function queryLobby(lobbyId: string) {
             logStructure("Lobby Full Structure", lobbyObj);
         }
 
-        return lobbyObj;
+        return { lobbyObj, tableId };
     } catch (e) {
         console.error(`Failed to query lobby: ${e}`);
-        return null;
+        return { lobbyObj: null, tableId: null };
     }
 }
 
@@ -253,7 +414,7 @@ async function createRoomAndGame(
         target: `${PACKAGE_ID}::bomb_panic::create_game_for_room`,
         arguments: [
             tx2.object(lobbyId),
-            tx2.pure.address(roomId)
+            tx2.object(roomId)
         ],
         typeArguments: [COIN_TYPE]
     });
@@ -284,25 +445,30 @@ async function main() {
     console.log('  4. Verify the Lobby is tracking all room-to-game mappings\n');
 
     if (!process.env.ADMIN_PRIVATE_KEY) throw new Error("Missing ADMIN_PRIVATE_KEY");
-    if (!process.env.USER_1 || !process.env.USER_2) throw new Error("Missing USER_1 or USER_2 mnemonics");
+    if (!process.env.USER_1) throw new Error("Missing USER_1 mnemonic");
     const packageId = requireEnv("PACKAGE_ID", PACKAGE_ID);
     const lobbyId = requireEnv("LOBBY_ID", LOBBY_ID);
     const gameRegistry = requireEnv("GAME_REGISTRY", GAME_REGISTRY);
-    const adminCap = requireEnv("ADMIN_CAP", ADMIN_CAP);
     const config = requireEnv("CONFIG", CONFIG);
     const gameCapId = requireEnv("GAME_CAP_ID", GAME_CAP_ID);
 
     const adminKp = Ed25519Keypair.fromSecretKey(decodeSuiPrivateKey(process.env.ADMIN_PRIVATE_KEY).secretKey);
     const player1Kp = Ed25519Keypair.deriveKeypair(process.env.USER_1);
-    const player2Kp = Ed25519Keypair.deriveKeypair(process.env.USER_2);
+    const player2Kp = process.env.USER_2 ? Ed25519Keypair.deriveKeypair(process.env.USER_2) : null;
 
     const adminAddr = adminKp.toSuiAddress();
     const p1Addr = player1Kp.toSuiAddress();
-    const p2Addr = player2Kp.toSuiAddress();
+    const p2Addr = player2Kp ? player2Kp.toSuiAddress() : PLAYER_2_ADDRESS ?? null;
 
     console.log(` Admin: ${adminAddr}`);
     console.log(`Player 1: ${p1Addr}`);
-    console.log(`Player 2: ${p2Addr}\n`);
+    console.log(`Player 2: ${p2Addr ?? '(external/unknown)'}\n`);
+
+    const knownPlayers = new Map<string, { name: string; keypair?: Ed25519Keypair }>();
+    knownPlayers.set(p1Addr, { name: 'Player 1', keypair: player1Kp });
+    if (p2Addr) {
+        knownPlayers.set(p2Addr, { name: 'Player 2', keypair: player2Kp ?? undefined });
+    }
 
 
 
@@ -318,7 +484,9 @@ async function main() {
     }
     await checkBalance(adminAddr, "Admin");
     await checkBalance(p1Addr, "Player 1");
-    await checkBalance(p2Addr, "Player 2");
+    if (p2Addr) {
+        await checkBalance(p2Addr, "Player 2");
+    }
 
     // Query initial state (no rooms created yet)
     console.log('\n\n═══════════════════════════════════════════════════════');
@@ -333,32 +501,33 @@ async function main() {
         lobbyId,
         gameRegistry,
         config,
-        50_000_000, // 50 OCT
-        2,
+        50_000,
+        3,
         "Room 1 (Small Stakes)"
     );
 
-    // Create Room 2: Medium stakes, 4 players
-    const room2 = await createRoomAndGame(
-        player2Kp,
-        lobbyId,
-        gameRegistry,
-        config,
-        100_000_000, // 100 OCT
-        4,
-        "Room 2 (Medium Stakes)"
-    );
+    // // Create Room 2: Medium stakes, 4 players
+    // const room2Creator = player2Kp ?? player1Kp;
+    // const room2 = await createRoomAndGame(
+    //     room2Creator,
+    //     lobbyId,
+    //     gameRegistry,
+    //     config,
+    //     100_000_000,
+    //     4,
+    //     "Room 2 (Medium Stakes)"
+    // );
 
-    // Create Room 3: High stakes, 8 players
-    const room3 = await createRoomAndGame(
-        adminKp,
-        lobbyId,
-        gameRegistry,
-        config,
-        200_000_000, // 200 OCT
-        8,
-        "Room 3 (High Stakes)"
-    );
+    // // Create Room 3: High stakes, 8 players
+    // const room3 = await createRoomAndGame(
+    //     adminKp,
+    //     lobbyId,
+    //     gameRegistry,
+    //     config,
+    //     200_000_000, // 200 OCT
+    //     8,
+    //     "Room 3 (High Stakes)"
+    // );
 
     // Wait for all indexing to complete
     console.log('\n\n⏳ Waiting 10s for final indexing...');
@@ -368,14 +537,15 @@ async function main() {
     console.log('\n\n═══════════════════════════════════════════════════════');
     console.log('FINAL STATE - After Creating All Rooms');
     console.log('═══════════════════════════════════════════════════════');
-    const roomIds = [room1.roomId, room2.roomId, room3.roomId];
-    const gameStateIds = [room1.gameStateId, room2.gameStateId, room3.gameStateId];
+    const roomIds = [room1.roomId];
+    const gameStateIds = [room1.gameStateId];
     const allRooms = await queryRooms(roomIds);
     const allGameStates = await queryGameStates(gameStateIds);
-    await queryLobby(lobbyId);
+    const { tableId } = await queryLobby(lobbyId);
+    if (!tableId) throw new Error('Lobby room_to_game table ID not found');
     // 1) List Lobby entries (room IDs)
     const fields = await client.getDynamicFields({
-        parentId: "0x56bda8872572aa2f9223a4240003d0cf4cc412507ecf16562d1a902b544510f0", // lobby.room_to_game.fields.id
+        parentId: tableId, // lobby.room_to_game.fields.id
         limit: 50,
     });
 
@@ -421,8 +591,8 @@ async function main() {
 
     console.log('\n\n🎯 Room-to-GameState Mappings:');
     console.log(`  Room 1 → GameState: ${room1.gameStateId}`);
-    console.log(`  Room 2 → GameState: ${room2.gameStateId}`);
-    console.log(`  Room 3 → GameState: ${room3.gameStateId}`);
+    // console.log(`  Room 2 → GameState: ${room2.gameStateId}`);
+    // console.log(`  Room 3 → GameState: ${room3.gameStateId}`);
 
     console.log('\n\n✅ Lobby Integration Test Complete!');
     console.log('The Lobby module is successfully tracking all room-to-game mappings.');
@@ -437,12 +607,12 @@ async function main() {
     console.log('This will test the complete game flow:');
     console.log('  1. Join Room (Players)');
     console.log('  2. Ready to Play (Players pay entry fee)');
-    console.log('  3. Start Room (Admin)');
-    console.log('  4. Start Round (Admin)');
+    console.log('  3. Start Room (Backend)');
+    console.log('  4. Start Round (Backend)');
     console.log('  5. Pass Bomb (Players)');
     console.log('  6. Try Explode (Bot/Admin)');
-    console.log('  7. Settle Round (Admin)');
-    console.log('  8. Reset Game (Admin)\n');
+    console.log('  7. Settle Round (Backend)');
+    console.log('  8. Reset Game (Backend)\n');
 
     // Use Room 1 for the full test
     const testRoomId = room1.roomId;
@@ -451,25 +621,36 @@ async function main() {
     console.log(`🎯 Testing with Room: ${testRoomId}`);
     console.log(`🎯 Testing with GameState: ${testGameStateId}\n`);
 
-    // Step 1: Join Room (Player 1 & 2)
-    console.log('\n--- Step 1: Join Room (P1 & P2) ---');
+    function labelAddr(addr: string) {
+        const known = knownPlayers.get(addr);
+        return known ? `${known.name} (${addr})` : addr;
+    }
+
+    async function logParticipants() {
+        const ready = await fetchReadyPlayers(testRoomId);
+        const players = await fetchGamePlayers(testGameStateId);
+        const playerList = players.length ? players.map(labelAddr).join(', ') : '(none)';
+        const readyAddrs = Array.from(ready.entries())
+            .filter(([, isReady]) => Boolean(isReady))
+            .map(([addr]) => addr);
+        const readyList = readyAddrs.length ? readyAddrs.map(labelAddr).join(', ') : '(none)';
+        console.log(`Players in game (${players.length}): ${playerList}`);
+        console.log(`Ready players (${readyAddrs.length}): ${readyList}`);
+    }
 
     async function joinRoom(playerKp: Ed25519Keypair, name: string) {
         const tx = new Transaction();
         const addr = playerKp.toSuiAddress();
 
-        // Gas Selection
         const coins = await client.getCoins({ owner: addr, coinType: NATIVE_COIN_TYPE });
         const gas = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
         if (gas) tx.setGasPayment([{ objectId: gas.coinObjectId, version: gas.version, digest: gas.digest }]);
 
-        // 1. gamehub::join_room
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::join_room`,
             arguments: [tx.object(testRoomId)],
             typeArguments: [COIN_TYPE]
         });
-        // 2. bomb_panic::join
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::join`,
             arguments: [tx.object(testGameStateId)],
@@ -478,15 +659,6 @@ async function main() {
         tx.setGasBudget(GAS_BUDGET);
         return signAndExecute(playerKp, tx, `Join ${name}`);
     }
-
-    await joinRoom(player1Kp, "Player 1");
-    await joinRoom(player2Kp, "Player 2");
-
-    console.log("⏳ Waiting 5s for indexing...");
-    await new Promise(r => setTimeout(r, 5000));
-
-    // Step 2: Ready to Play (Player 1 & 2)
-    console.log('\n--- Step 2: Ready to Play ---');
 
     async function readyToPlay(playerKp: Ed25519Keypair, name: string) {
         const tx = new Transaction();
@@ -499,7 +671,6 @@ async function main() {
             tx.setGasPayment([{ objectId: gas.coinObjectId, version: gas.version, digest: gas.digest }]);
         }
 
-        // Split entry fee from gas (OCT requires 2x entry fee for 50% rule)
         const [feeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(ENTRY_FEE * 2)]);
 
         tx.moveCall({
@@ -511,208 +682,340 @@ async function main() {
         return signAndExecute(playerKp, tx, `Ready ${name}`);
     }
 
-    await readyToPlay(player1Kp, "Player 1");
-    await readyToPlay(player2Kp, "Player 2");
+    async function stepJoinRoom() {
+        console.log('\n--- Step 1: Join Room ---');
+        await joinRoom(player1Kp, "Player 1");
+        if (player2Kp) {
+            await joinRoom(player2Kp, "Player 2");
+        } else {
+            console.log('Waiting for external player to join...');
+            await waitForPlayers(testGameStateId, 2);
+        }
+        await sleep(5000);
+        await logParticipants();
+    }
 
-    console.log("⏳ Waiting 5s for indexing...");
-    await new Promise(r => setTimeout(r, 5000));
+    async function stepReadyToPlay() {
+        console.log('\n--- Step 2: Ready to Play ---');
+        await readyToPlay(player1Kp, "Player 1");
+        if (player2Kp) {
+            await readyToPlay(player2Kp, "Player 2");
+        } else {
+            console.log('Waiting for external player to ready...');
+            await waitForReadyCount(testRoomId, 2);
+        }
+        await sleep(5000);
+        await logParticipants();
+    }
 
-    // Step 3: Start Room (Admin/Backend)
-    console.log('\n--- Step 3: Start Room (GameHub) ---');
+    async function stepStartRoom() {
+        console.log('\n--- Step 3: Start Room (GameHub) ---');
 
-    let tx = new Transaction();
-    let adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-    let adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (adminGas) tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
-
-    tx.moveCall({
-        target: `${PACKAGE_ID}::gamehub::start_room`,
-        arguments: [
-            tx.object(testRoomId),
-            tx.object(adminCap),
-            tx.object(config)
-        ],
-        typeArguments: [COIN_TYPE]
-    });
-    tx.setGasBudget(GAS_BUDGET);
-
-    await signAndExecute(adminKp, tx, "Start Room");
-
-    console.log("⏳ Waiting 5s for indexing...");
-    await new Promise(r => setTimeout(r, 5000));
-
-    // Get pool value for start_round
-    const roomState = await client.getObject({ id: testRoomId, options: { showContent: true } });
-    const poolValue = (roomState.data?.content as any)?.fields?.pool?.fields?.value || '0';
-    console.log(`💰 Current Pool Value: ${poolValue} OCT`);
-
-    // Step 4: Start Round (Bomb Panic)
-    console.log('\n--- Step 4: Start Round (Bomb Panic) ---');
-
-    tx = new Transaction();
-    adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-    adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (adminGas) tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
-
-    tx.moveCall({
-        target: `${PACKAGE_ID}::bomb_panic::start_round`,
-        arguments: [
-            tx.object(RANDOM_ID),
-            tx.object(testGameStateId),
-            tx.object(testRoomId),
-            tx.object(CLOCK_ID)
-        ],
-        typeArguments: [COIN_TYPE]
-    });
-    tx.setGasBudget(GAS_BUDGET);
-
-    const startResult = await signAndExecute(adminKp, tx, "Start Round");
-    logStructure("Start Round Events", startResult.events);
-
-    console.log("⏳ Waiting 5s for indexing...");
-    await new Promise(r => setTimeout(r, 5000));
-
-    const playingGame = await client.getObject({ id: testGameStateId, options: { showContent: true } });
-    logStructure("GameState (Playing)", playingGame);
-
-    const holder = (playingGame.data?.content as any)?.fields?.bomb_holder;
-    console.log(`💣 Initial Bomb Holder: ${holder}`);
-
-    // Step 5: Pass Bomb
-    console.log('\n--- Step 5: Pass Bomb ---');
-    const holderKp = p1Addr === holder ? player1Kp : player2Kp;
-    const holderName = p1Addr === holder ? "Player 1" : "Player 2";
-
-    tx = new Transaction();
-    const hAddr = holderKp.toSuiAddress();
-    const hCoins = await client.getCoins({ owner: hAddr, coinType: NATIVE_COIN_TYPE });
-    const hGas = hCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (hGas) tx.setGasPayment([{ objectId: hGas.coinObjectId, version: hGas.version, digest: hGas.digest }]);
-
-    tx.moveCall({
-        target: `${PACKAGE_ID}::bomb_panic::pass_bomb`,
-        arguments: [
-            tx.object(RANDOM_ID),
-            tx.object(testGameStateId),
-            tx.object(CLOCK_ID)
-        ],
-        typeArguments: [COIN_TYPE]
-    });
-    tx.setGasBudget(GAS_BUDGET);
-
-    console.log(`${holderName} passing bomb...`);
-    const passResult = await signAndExecute(holderKp, tx, "Pass Bomb");
-    logStructure("Pass Bomb Events", passResult.events);
-
-    console.log("⏳ Waiting 3s...");
-    await new Promise(r => setTimeout(r, 3000));
-
-    // Step 6: Try Explode Loop
-    console.log('\n--- Step 6: Game Loop (Try Explode) ---');
-    let exploded = false;
-    let attempts = 0;
-    const maxAttempts = 20;
-
-    while (!exploded && attempts < maxAttempts) {
-        console.log(`💥 Attempt ${attempts + 1}/${maxAttempts}...`);
-        tx = new Transaction();
-
-        adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-        adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (adminGas) tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+        const tx = new Transaction();
+        // const adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
+        // const adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+        // if (adminGas) {
+        //     tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+        // }
 
         tx.moveCall({
-            target: `${PACKAGE_ID}::bomb_panic::try_explode`,
+            target: `${PACKAGE_ID}::gamehub::start_room`,
             arguments: [
-                tx.object(testGameStateId),
-                tx.object(CLOCK_ID),
-                tx.object(RANDOM_ID)
+                tx.object(testRoomId),
+                tx.object(config)
             ],
             typeArguments: [COIN_TYPE]
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        const explodeResult = await signAndExecute(adminKp, tx, `Try Explode #${attempts + 1}`);
+        await signAndExecute(player1Kp, tx, "Start Room");
 
-        const explodeEvent = explodeResult.events?.find(e => e.type.includes('::Exploded'));
-        const victoryEvent = explodeResult.events?.find(e => e.type.includes('::Victory'));
+        await sleep(5000);
+    }
 
-        if (explodeEvent || victoryEvent) {
-            console.log("💥💥💥 Explosion or Victory Detected! 💥💥💥");
-            logStructure("End Game Event", explodeEvent || victoryEvent);
-            exploded = true;
-        } else {
-            console.log("... Tick tock ...");
-            await new Promise(r => setTimeout(r, 1000));
+    async function stepStartRound(): Promise<string | null> {
+        console.log('\n--- Step 4: Start Round (Bomb Panic) ---');
+
+        const tx = new Transaction();
+        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+        if (p1Gas) {
+            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
         }
-        attempts++;
+
+        tx.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::start_round`,
+            arguments: [
+                tx.object(RANDOM_ID),
+                tx.object(testGameStateId),
+                tx.object(testRoomId),
+                tx.object(CLOCK_ID)
+            ],
+            typeArguments: [COIN_TYPE]
+        });
+        tx.setGasBudget(GAS_BUDGET);
+
+        const startResult = await signAndExecute(player1Kp, tx, "Start Round");
+        logStructure("Start Round Events", startResult.events);
+
+        const startedEvent = startResult.events?.find(e => e.type.includes('::RoundStarted'));
+        const initialHolder = startedEvent ? (startedEvent as any).parsedJson?.bomb_holder : null;
+
+        await sleep(5000);
+
+        const holder = initialHolder ?? await fetchBombHolder(testGameStateId);
+        if (holder) {
+            console.log(`💣 Initial Bomb Holder: ${labelAddr(holder)}`);
+        } else {
+            console.log('💣 Initial Bomb Holder: (unknown)');
+        }
+
+        return holder;
     }
 
-    if (!exploded) {
-        console.warn(`⚠️  No explosion after ${maxAttempts} attempts. Continuing anyway...`);
+    async function stepPassBomb(initialHolder: string | null, numPasses = 4) {
+        console.log(`\n--- Step 5: Pass Bomb (${numPasses} passes) ---`);
+
+        for (let i = 0; i < numPasses; i++) {
+            const holderAddr = await fetchBombHolder(testGameStateId);
+            if (!holderAddr) {
+                console.warn(`⚠️  Pass ${i + 1}: Could not determine bomb holder`);
+                break;
+            }
+
+            console.log(`\n🔄 Pass ${i + 1}/${numPasses}: Current holder: ${labelAddr(holderAddr)}`);
+            const holderInfo = knownPlayers.get(holderAddr);
+
+            if (!holderInfo?.keypair) {
+                console.log('  Holder is external. Waiting for them to pass...');
+                const newHolder = await waitForHolderChange(testGameStateId, holderAddr, 60_000);
+                if (newHolder) {
+                    console.log(`  Holder changed to: ${labelAddr(newHolder)}`);
+                    continue; // Re-check who is holding it now
+                } else {
+                    console.warn('⚠️  Holder did not change in time');
+                    break;
+                }
+            }
+
+            const tx = new Transaction();
+            tx.moveCall({
+                target: `${PACKAGE_ID}::bomb_panic::pass_bomb`,
+                arguments: [
+                    tx.object(RANDOM_ID),
+                    tx.object(testGameStateId),
+                    tx.object(CLOCK_ID)
+                ],
+                typeArguments: [COIN_TYPE]
+            });
+            tx.setGasBudget(GAS_BUDGET);
+
+            console.log(`  ${holderInfo.name} passing bomb...`);
+            const passResult = await signAndExecute(holderInfo.keypair, tx, `Pass Bomb #${i + 1}`);
+
+            // Check if game ended during pass (e.g. explosion due to hold time or victory)
+            const exploded = passResult.events?.some(e => e.type.includes('::Exploded'));
+            const victory = passResult.events?.some(e => e.type.includes('::Victory'));
+
+            if (exploded || victory) {
+                console.log("💥 Game ended during pass bomb!");
+                break;
+            }
+
+            await sleep(5000);
+        }
     }
 
-    // Step 7: Settle Game
-    console.log('\n--- Step 7: Settle Round (Internal Flow) ---');
-    console.log("⏳ Waiting 10s for indexing before settlement...");
-    await new Promise(r => setTimeout(r, 10000));
+    async function stepTryExplodeLoop() {
+        console.log('\n--- Step 6: Game Loop (Try Explode) ---');
+        let exploded = false;
+        let attempts = 0;
+        const maxAttempts = 20;
 
-    const endedGame = await client.getObject({ id: testGameStateId, options: { showContent: true } });
-    logStructure("GameState (Before Settlement)", endedGame);
+        while (!exploded && attempts < maxAttempts) {
+            console.log(`💥 Attempt ${attempts + 1}/${maxAttempts}...`);
+            const tx = new Transaction();
 
-    tx = new Transaction();
-    adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-    adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (adminGas) tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+            const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+            const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+            if (p1Gas) {
+                tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
+            }
 
-    // Internal settlement call
-    tx.moveCall({
-        target: `${PACKAGE_ID}::bomb_panic::settle_round_with_hub`,
-        arguments: [
-            tx.object(testGameStateId),  // GameState
-            tx.object(testRoomId),       // Room
-            tx.object(gameCapId)         // GameCap
-        ],
-        typeArguments: [COIN_TYPE]
-    });
-    tx.setGasBudget(GAS_BUDGET);
+            tx.moveCall({
+                target: `${PACKAGE_ID}::bomb_panic::try_explode`,
+                arguments: [
+                    tx.object(testGameStateId),
+                    tx.object(CLOCK_ID),
+                    tx.object(RANDOM_ID)
+                ],
+                typeArguments: [COIN_TYPE]
+            });
+            tx.setGasBudget(GAS_BUDGET);
 
-    const settleResult = await signAndExecute(adminKp, tx, "Settle Round");
+            const explodeResult = await signAndExecute(player1Kp, tx, `Try Explode #${attempts + 1}`);
 
-    // Log the RoundSettled event
-    const roundSettledEvent = settleResult.events?.find(e => e.type.includes('::RoundSettled'));
-    if (roundSettledEvent) {
-        console.log("🎯 RoundSettled Event Detected!");
-        logStructure("RoundSettled Event", roundSettledEvent);
-    } else {
-        console.warn("⚠️  No RoundSettled event found");
+            const explodeEvent = explodeResult.events?.find(e => e.type.includes('::Exploded'));
+            const victoryEvent = explodeResult.events?.find(e => e.type.includes('::Victory'));
+
+            if (explodeEvent || victoryEvent) {
+                console.log("💥💥💥 Explosion or Victory Detected! 💥💥💥");
+                logStructure("End Game Event", explodeEvent || victoryEvent);
+                exploded = true;
+            } else {
+                console.log("... Tick tock ...");
+                await sleep(2000);
+            }
+            attempts++;
+        }
+
+        if (!exploded) {
+            console.warn(`⚠️  No explosion after ${maxAttempts} attempts. Continuing anyway...`);
+        }
     }
 
-    console.log("⏳ Waiting 5s for indexing...");
-    await new Promise(r => setTimeout(r, 5000));
+    async function stepSettleRound() {
+        console.log('\n--- Step 7: Settle Round (Internal Flow) ---');
+        console.log("⏳ Waiting 10s for indexing before settlement...");
+        await sleep(10_000);
 
-    // Step 8: Reset Game
-    console.log('\n--- Step 8: Reset Game ---');
-    tx = new Transaction();
-    adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-    adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (adminGas) tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
+        const endedGame = await client.getObject({ id: testGameStateId, options: { showContent: true } });
+        logStructure("GameState (Before Settlement)", endedGame);
 
-    tx.moveCall({
-        target: `${PACKAGE_ID}::bomb_panic::reset_game`,
-        arguments: [tx.object(testGameStateId)],
-        typeArguments: [COIN_TYPE]
-    });
-    tx.setGasBudget(GAS_BUDGET);
+        const tx = new Transaction();
+        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+        if (p1Gas) {
+            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
+        }
 
-    await signAndExecute(adminKp, tx, "Reset Game");
+        tx.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::settle_round_with_hub`,
+            arguments: [
+                tx.object(testGameStateId),
+                tx.object(testRoomId),
+                tx.object(gameCapId)
+            ],
+            typeArguments: [COIN_TYPE]
+        });
+        tx.setGasBudget(GAS_BUDGET);
 
-    console.log("⏳ Waiting 5s for indexing...");
-    await new Promise(r => setTimeout(r, 5000));
+        const settleResult = await signAndExecute(player1Kp, tx, "Settle Round");
 
-    const resetGame = await client.getObject({ id: testGameStateId, options: { showContent: true } });
-    logStructure("GameState (After Reset)", resetGame);
+        const roundSettledEvent = settleResult.events?.find(e => e.type.includes('::RoundSettled'));
+        if (roundSettledEvent) {
+            console.log("🎯 RoundSettled Event Detected!");
+            logStructure("RoundSettled Event", roundSettledEvent);
+        } else {
+            console.warn("⚠️  No RoundSettled event found");
+        }
 
+        // Derive expected payouts from the RoundSettled event if present.
+        let expectedPayoutP1: bigint | null = null;
+        let expectedPayoutP2: bigint | null = null;
+        const pj = (roundSettledEvent as any)?.parsedJson;
+        if (pj) {
+            const survivors: string[] = Array.isArray(pj.survivors) ? pj.survivors : [];
+            const survivorEach = BigInt(pj.survivor_payout_each ?? 0);
+            const holderRewards: Array<{ player: string; amount: string }> = Array.isArray(pj.holder_rewards) ? pj.holder_rewards : [];
+
+            const expected = new Map<string, bigint>();
+            for (let i = 0; i < survivors.length; i++) {
+                expected.set(survivors[i], (expected.get(survivors[i]) ?? 0n) + survivorEach);
+            }
+            for (const r of holderRewards) {
+                if (typeof r?.player !== 'string') continue;
+                expected.set(r.player, (expected.get(r.player) ?? 0n) + BigInt(r.amount ?? 0));
+            }
+
+            expectedPayoutP1 = expected.get(p1Addr) ?? 0n;
+            if (p2Addr) expectedPayoutP2 = expected.get(p2Addr) ?? 0n;
+        }
+
+
+
+        await sleep(5000);
+
+        const roomAfter = await client.getObject({ id: testRoomId, options: { showContent: true } });
+        const roomContent = getMoveObjectContent(roomAfter);
+        const rf = roomContent?.fields as any;
+        const poolRaw = rf?.pool;
+        const poolValue =
+            typeof poolRaw === 'string'
+                ? poolRaw
+                : poolRaw?.fields?.value ?? poolRaw?.value ?? '0';
+        console.log('\n🏦 Room after settlement:');
+        console.log(`  Status: ${rf?.status?.variant ?? 'Unknown'}`);
+        console.log(`  Pool: ${poolValue}`);
+    }
+
+
+    async function stepConfigureGame() {
+        console.log('\n--- Step: Configure Game (Admin) ---');
+
+
+        const tx = new Transaction();
+        // Replace ADMIN_CAP_ID with your actual AdminCap object ID from .env or console
+        const adminCapId = process.env.ADMIN_CAP;
+        if (!adminCapId) throw new Error("Missing ADMIN_CAP_ID in .env");
+        tx.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::configure_game_admin`,
+            arguments: [
+                tx.object(testGameStateId),
+                tx.object(adminCapId),
+                tx.pure.u64(30000),      // max_hold_time_ms (e.g., 15 seconds)
+                tx.pure.u64(100),        // explosion_rate_bps (e.g., 5%)
+                tx.pure.u64(10),         // reward_divisor (pool / 40 = reward per sec)
+            ],
+            typeArguments: [COIN_TYPE]
+        });
+
+        tx.setGasBudget(GAS_BUDGET);
+        // This MUST be signed by the Admin wallet that owns the AdminCap
+        await signAndExecute(player1Kp, tx, "Configure Game");
+    }
+
+    async function stepResetGame() {
+
+        console.log('\n--- Step 8: Reset Game ---');
+        const tx = new Transaction();
+        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
+        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+        if (p1Gas) {
+            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
+        }
+
+        tx.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::reset_game`,
+            arguments: [tx.object(testGameStateId)],
+            typeArguments: [COIN_TYPE]
+        });
+        tx.moveCall({
+            target: `${PACKAGE_ID}::gamehub::reset_room`,
+            arguments: [tx.object(testRoomId), tx.object(testGameStateId)],
+            typeArguments: [COIN_TYPE],
+        });
+        tx.setGasBudget(GAS_BUDGET);
+
+        await signAndExecute(player1Kp, tx, "Reset Game");
+
+        await sleep(5000);
+
+        const resetGame = await client.getObject({ id: testGameStateId, options: { showContent: true } });
+        logStructure("GameState (After Reset)", resetGame);
+    }
+
+    // await stepJoinRoom();
+    // await stepReadyToPlay();
+
+    // await sleep(5000);
+    // await stepStartRoom();
+    // const initialHolder = await stepStartRound();
+    // await stepPassBomb(initialHolder, 6);
+    // await stepTryExplodeLoop();
+    // await stepSettleRound();
+    // await stepResetGame();
+    // await stepConfigureGame();
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');
     console.log('════════════════════════════════════════════════════════════');

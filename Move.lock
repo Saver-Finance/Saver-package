@@ -3,7 +3,7 @@
 
 [move]
 version = 3
-manifest_digest = "602944EF1083A12D04E06BA971794EBD6F5055051163D8A4DB2C82D397DF143E"
+manifest_digest = "78D76279D11E083D021CBD580B50ADFD6B85E6921835C28613CDF7C330920065"
 deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
 dependencies = [
   { id = "MoveStdlib", name = "MoveStdlib" },
@@ -28,13 +28,13 @@ edition = "2024.beta"
 flavor = "one"
 
 [pinned.testnet.MoveStdlib]
-source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "15a6c7b1f14c75ec1829a475172c41b5e6d31c85" }
+source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "c7bdbfd526f14b583eda57b18cdc14d8f390e826" }
 use_environment = "testnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
 
 [pinned.testnet.One]
-source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/one-framework", rev = "15a6c7b1f14c75ec1829a475172c41b5e6d31c85" }
+source = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/one-framework", rev = "c7bdbfd526f14b583eda57b18cdc14d8f390e826" }
 use_environment = "testnet"
 manifest_digest = "7AFB66695545775FBFBB2D3078ADFD084244D5002392E837FDE21D9EA1C6D01C"
 deps = { MoveStdlib = "MoveStdlib" }
@@ -49,6 +49,6 @@ deps = { MoveStdlib = "MoveStdlib", One = "One" }
 
 [env.testnet]
 chain-id = "1bd5c965"
-original-published-id = "0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a"
-latest-published-id = "0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a"
+original-published-id = "0xf4cd45ff567345209a32d2d2e962638d1ff73ab2ffca0a1eeceb6c469a95c414"
+latest-published-id = "0xf4cd45ff567345209a32d2d2e962638d1ff73ab2ffca0a1eeceb6c469a95c414"
 published-version = "1"

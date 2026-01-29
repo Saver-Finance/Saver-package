@@ -22,7 +22,7 @@ const COIN_TYPE = '0x2::oct::OCT';
 // ============================================================================
 
 const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY;
-
+const ADMIN_MNEMONIC = process.env.USER_1;
 // ============================================================================
 // Script
 // ============================================================================
@@ -32,9 +32,11 @@ const client = new SuiClient({ url: RPC_URL });
 async function registerGame() {
     console.log('🔐 Registering Bomb Panic game with GameHub...\n');
 
-    const adminKeypair = Ed25519Keypair.fromSecretKey(decodeSuiPrivateKey(ADMIN_PRIVATE_KEY!).secretKey);
-    const adminAddress = adminKeypair.getPublicKey().toSuiAddress();
+    // const adminKeypair = Ed25519Keypair.fromSecretKey(decodeSuiPrivateKey(ADMIN_PRIVATE_KEY!).secretKey);
+    // const adminAddress = adminKeypair.getPublicKey().toSuiAddress();
 
+    const adminKeypair = Ed25519Keypair.deriveKeypair(ADMIN_MNEMONIC!);
+    const adminAddress = adminKeypair.getPublicKey().toSuiAddress();
     console.log(`Admin address: ${adminAddress}`);
     console.log(`Package ID: ${PACKAGE_ID}`);
     console.log(`Game Registry: ${GAME_REGISTRY}`);
