@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test:integration": "ts-node tests/integration.test.ts",
-    "test:simple": "ts-node tests/bomb_panic_tests.ts"
+    "test:simple": "ts-node tests/saver_test.ts"
   },
   "keywords": [
     "sui",
