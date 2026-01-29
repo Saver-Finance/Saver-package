@@ -17,7 +17,7 @@
     },
     "include": [
         "tests/**/*"
-, "docs/testsdk.ts", "docs/testbefe copy.ts"    ],
+    ],
     "exclude": [
         "node_modules",
         "dist"
