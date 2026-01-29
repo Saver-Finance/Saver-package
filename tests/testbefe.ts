@@ -961,11 +961,11 @@ async function main() {
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::configure_game_admin`,
             arguments: [
-                tx.object(testGameStateId),
+                tx.object("0x424dd4d398d3810d484dc3e11e130074886695f59bd88754490fda48582bba1c"),
                 tx.object(adminCapId),
-                tx.pure.u64(30000),      // max_hold_time_ms (e.g., 15 seconds)
-                tx.pure.u64(100),        // explosion_rate_bps (e.g., 5%)
-                tx.pure.u64(10),         // reward_divisor (pool / 40 = reward per sec)
+                tx.pure.u64(60000),      // max_hold_time_ms (e.g., 15 seconds)
+                tx.pure.u64(300),        // explosion_rate_bps (e.g., 5%)
+                tx.pure.u64(100),         // reward_divisor (pool / 40 = reward per sec)
             ],
             typeArguments: [COIN_TYPE]
         });
@@ -1015,7 +1015,7 @@ async function main() {
     // await stepTryExplodeLoop();
     // await stepSettleRound();
     // await stepResetGame();
-    // await stepConfigureGame();
+    await stepConfigureGame();
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');
     console.log('════════════════════════════════════════════════════════════');

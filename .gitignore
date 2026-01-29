@@ -8,3 +8,4 @@ traces/*
 node_modules
 .env
 /sdk/*
+/sdk (1)/*
