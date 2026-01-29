@@ -1,3 +1,29 @@
+
+## Config
+```
+export const DEFAULT_CONFIG = {
+    PACKAGE_ID: "0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a",
+    MINTER_ID: "0x646cc2bcfe6cccad7581d9e105b626306ee8391b5fa644edf1db8f257f361a3d",
+    ADAPTER_CONFIG: "0xa288c11f7866eeb5ce9d5eb27720881c4982da0468d8cab93f2e6037eeadd56e",
+    UT_CONFIG: "0x69ec13a6e9d14a8d77f2622bf568c4bbbd123521f11173d837deef83b88e8a70",
+    YOCT_VAULT: "0xe26e439422eeaedc01ef8dcca6638f406c6836d9062c90e701744e6e9a0384ec",
+    MOCK_VAULT: "0xf70e7a95a68a0cf049bbf9425e0c2f6b30c4b6919ca1a2c2934b4cf34797eb75",
+    CLOCK: "0x6",
+
+    // Redeem Pool & Limiter (For Repay/Liquidate)
+    RP_CONFIG: "0xf01aba7c4837d10ddc6ab71d827bb9c5b7c46717f6f536994de0cabbba7aabc1",
+    RP_VAULT: "0x5d8ad3ff5be7acd0d38e7828e82c16668b0fe1f82e1ce47af4c263f6da82ec95",
+    LIQUIDATE_LIMITER: "0xcacbde553bbb14c615aaf1507e9551acbae5747c2ad76142555df4267f76517c",
+
+    // Coin Types
+    COIN_OCT: "0x2::oct::OCT",
+    COIN_YOCT: "0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a::yoct::YOCT",
+    COIN_SROCT: "0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a::sroct::SROCT",
+    SROCT_TREASURY_CAP: "0x4183c3f7e0d2f6eafe42c553a12781ccd33b5d483448650c5ab9927c4ffc112c"
+};
+
+```
+
 ## Project description
 SAVER is a synthetic asset protocol that allows users to deposit Yield-Bearing Tokens (YT) to mint a synthetic stablecoin or share token (SROCT). It uses a "Credit" system to accrue yield and manage debt, ensuring the system remains over-collateralized.
 - **Deposit**: Users deposit Underlying/Yield tokens to receive structural "Shares".
