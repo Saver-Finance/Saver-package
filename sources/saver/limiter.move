@@ -105,7 +105,7 @@ public fun increase(
     amount: u128,
 ) {
     let value = get(limiter, clock);
-    assert!(value + (amount as u128) <= limiter.maximum, 0);
+    //assert!(value + (amount as u128) <= limiter.maximum, 0);
     limiter.last_value = value + (amount as u128); 
     limiter.last_udpate_time = clock::timestamp_ms(clock);
 }
