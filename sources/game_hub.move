@@ -232,12 +232,7 @@ public fun ready_to_play_internal<T>(
     ctx: &mut TxContext
 ) {
     let user = ctx.sender();
-<<<<<<< HEAD
-
-
-=======
     
->>>>>>> feature/saver-lending-core-v2
     assert!(room.status == Status::Waiting, ERoomNotWaiting);
     assert!(table::contains(&room.player_balances, user), EPlayerNotFound);
 
@@ -385,38 +380,6 @@ public fun settle_internal<T>(
     room.status = Status::Settled;
 }
 
-<<<<<<< HEAD
-// public fun claim_internal<T>(
-//     room: &mut Room<T>,
-//     ctx: &mut TxContext,
-// ): Coin<T> {
-//     let player = tx_context::sender(ctx);
-
-//     assert!(room.status == Status::Settled, ERoomNotSettled);
-
-//     assert!(
-//         table::contains(&room.player_balances, player),
-//         EPlayerNotFound
-//     );
-
-//     let amount = table::borrow_mut(&mut room.player_balances, player);
-//     let pool_balance = balance::value(&room.pool);
-
-//     assert!(*amount > 0, ENothingToClaim);
-//     assert!(*amount <= pool_balance, EInsufficientPoolBalance);
-
-//     let claim_amount = *amount;
-//     *amount = 0u64;
-
-//     // Return full balance (fees already deducted at start)
-//     coin::from_balance(
-//         balance::split(&mut room.pool, claim_amount),
-//         ctx
-//     )
-// }
-
-=======
->>>>>>> feature/saver-lending-core-v2
 /// Reset a settled room so everyone re-joins next round.
 /// Must be called after settle_internal (pool must be 0).
 entry fun reset_room<T>(
@@ -990,10 +953,3 @@ module gamehub::gamehub_tests {
     }
 }
 
-<<<<<<< HEAD
-#[test_only]
-public fun get_room_creation_fee(config: &Config): u64 {
-    config.room_creation_fee
-}
-=======
->>>>>>> feature/saver-lending-core-v2

@@ -14,15 +14,24 @@ const GAME_REGISTRY = process.env.GAME_REGISTRY;
 const PLAYER_2_ADDRESS = process.env.PLAYER_2_ADDRESS;
 const CONFIG = process.env.CONFIG;
 const GAME_CAP_ID = process.env.GAME_CAP;
+const GAME_CAP_OCT = process.env.GAME_CAP_OCT;
+const GAME_CAP_HACKATHON = process.env.GAME_CAP_HACKATHON;
 const RANDOM_ID = process.env.RANDOM_ID || '0x8';
 const CLOCK_ID = process.env.CLOCK_ID || '0x6';
-const COIN_TYPE = '0x2::oct::OCT';
-const NATIVE_COIN_TYPE = '0x2::oct::OCT';
+const OCT_COIN_TYPE = '0x2::oct::OCT';
+const HACKATHON_COIN_TYPE =
+    '0x8b76fc2a2317d45118770cefed7e57171a08c477ed16283616b15f099391f120::hackathon::HACKATHON';
+const COIN_TYPE = process.env.COIN_TYPE ?? OCT_COIN_TYPE;
+const NATIVE_COIN_TYPE = OCT_COIN_TYPE;
 const GAS_BUDGET = 100_000_000;
 const ENTRY_FEE = 50_000_000;
 const MAX_PLAYERS = 4;
 
 const client = new SuiClient({ url: RPC_URL });
+
+function toU64(value: bigint | number | string): bigint {
+    return typeof value === 'bigint' ? value : BigInt(value);
+}
 
 // Helper to sign and execute transactions
 async function signAndExecute(signer: Ed25519Keypair, tx: Transaction, description: string) {
@@ -61,6 +70,16 @@ async function logStructure(title: string, data: any) {
 function requireEnv(name: string, value: string | undefined): string {
     if (!value) throw new Error(`Missing ${name} in .env`);
     return value;
+}
+
+function resolveGameCapId(): string {
+    if (COIN_TYPE === OCT_COIN_TYPE) {
+        return requireEnv('GAME_CAP_OCT (or GAME_CAP)', GAME_CAP_OCT ?? GAME_CAP_ID);
+    }
+    if (COIN_TYPE === HACKATHON_COIN_TYPE) {
+        return requireEnv('GAME_CAP_HACKATHON (or GAME_CAP)', GAME_CAP_HACKATHON ?? GAME_CAP_ID);
+    }
+    return requireEnv('GAME_CAP', GAME_CAP_ID);
 }
 
 function findCreatedObjectId(
@@ -113,6 +132,35 @@ function extractBoolFieldValue(content: any): boolean {
     if (typeof nested === 'boolean') return nested;
     if (typeof nested === 'string') return nested === 'true';
     return false;
+}
+
+async function setNativeGasPayment(tx: Transaction, owner: string) {
+    const coins = await client.getCoins({ owner, coinType: NATIVE_COIN_TYPE });
+    const gas = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+    if (gas) {
+        tx.setGasPayment([{ objectId: gas.coinObjectId, version: gas.version, digest: gas.digest }]);
+    }
+}
+
+async function splitCoinFromOwner(
+    tx: Transaction,
+    owner: string,
+    coinType: string,
+    amount: bigint | number | string
+) {
+    const u64Amount = toU64(amount);
+    if (coinType === NATIVE_COIN_TYPE) {
+        const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(u64Amount)]);
+        return coin;
+    }
+
+    const coins = await client.getCoins({ owner, coinType });
+    const src = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+    if (!src) {
+        throw new Error(`No coins available for ${owner} with type ${coinType}`);
+    }
+    const [coin] = tx.splitCoins(tx.object(src.coinObjectId), [tx.pure.u64(u64Amount)]);
+    return coin;
 }
 
 async function fetchTableAsMap<T>(
@@ -367,15 +415,10 @@ async function createRoomAndGame(
     const creatorAddr = creator.toSuiAddress();
     const tx = new Transaction();
 
-    // Get gas coin
-    const coins = await client.getCoins({ owner: creatorAddr, coinType: NATIVE_COIN_TYPE });
-    const gas = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (gas) {
-        tx.setGasPayment([{ objectId: gas.coinObjectId, version: gas.version, digest: gas.digest }]);
-    }
+    await setNativeGasPayment(tx, creatorAddr);
 
     // Split creation fee (100 units)
-    const [creationFeeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(100)]);
+    const creationFeeCoin = await splitCoinFromOwner(tx, creatorAddr, COIN_TYPE, 100);
 
     // Create room
     tx.moveCall({
@@ -404,11 +447,7 @@ async function createRoomAndGame(
 
     // Create GameState for this room
     const tx2 = new Transaction();
-    const coins2 = await client.getCoins({ owner: creatorAddr, coinType: NATIVE_COIN_TYPE });
-    const gas2 = coins2.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-    if (gas2) {
-        tx2.setGasPayment([{ objectId: gas2.coinObjectId, version: gas2.version, digest: gas2.digest }]);
-    }
+    await setNativeGasPayment(tx2, creatorAddr);
 
     tx2.moveCall({
         target: `${PACKAGE_ID}::bomb_panic::create_game_for_room`,
@@ -433,7 +472,7 @@ async function createRoomAndGame(
         logStructure(`${roomName} Creation Event`, createdEvent);
     }
 
-    return { roomId, gameStateId };
+    return { roomId, gameStateId, entryFee };
 }
 
 async function main() {
@@ -450,7 +489,7 @@ async function main() {
     const lobbyId = requireEnv("LOBBY_ID", LOBBY_ID);
     const gameRegistry = requireEnv("GAME_REGISTRY", GAME_REGISTRY);
     const config = requireEnv("CONFIG", CONFIG);
-    const gameCapId = requireEnv("GAME_CAP_ID", GAME_CAP_ID);
+    const gameCapId = resolveGameCapId();
 
     const adminKp = Ed25519Keypair.fromSecretKey(decodeSuiPrivateKey(process.env.ADMIN_PRIVATE_KEY).secretKey);
     const player1Kp = Ed25519Keypair.deriveKeypair(process.env.USER_1);
@@ -475,12 +514,16 @@ async function main() {
     console.log(`📋 Using Lobby ID: ${lobbyId}`);
     console.log(`📋 Using Game Registry: ${gameRegistry}`);
     console.log(`📋 Using Config: ${config}\n`);
+    console.log(`🪙 Using COIN_TYPE: ${COIN_TYPE}`);
+    console.log(`🎟️  Using GameCap: ${gameCapId}\n`);
 
     // Check balances
     console.log('💰 Checking balances...');
     async function checkBalance(addr: string, name: string) {
-        const bal = await client.getBalance({ owner: addr, coinType: NATIVE_COIN_TYPE });
-        console.log(`  ${name}: ${bal.totalBalance} OCT`);
+        const gasBal = await client.getBalance({ owner: addr, coinType: NATIVE_COIN_TYPE });
+        const tokenBal = COIN_TYPE === NATIVE_COIN_TYPE ? gasBal : await client.getBalance({ owner: addr, coinType: COIN_TYPE });
+        const gasSuffix = NATIVE_COIN_TYPE === OCT_COIN_TYPE ? 'OCT' : NATIVE_COIN_TYPE;
+        console.log(`  ${name}: gas=${gasBal.totalBalance} ${gasSuffix}, token=${tokenBal.totalBalance}`);
     }
     await checkBalance(adminAddr, "Admin");
     await checkBalance(p1Addr, "Player 1");
@@ -617,6 +660,7 @@ async function main() {
     // Use Room 1 for the full test
     const testRoomId = room1.roomId;
     const testGameStateId = room1.gameStateId;
+    const testEntryFee = room1.entryFee;
 
     console.log(`🎯 Testing with Room: ${testRoomId}`);
     console.log(`🎯 Testing with GameState: ${testGameStateId}\n`);
@@ -642,9 +686,7 @@ async function main() {
         const tx = new Transaction();
         const addr = playerKp.toSuiAddress();
 
-        const coins = await client.getCoins({ owner: addr, coinType: NATIVE_COIN_TYPE });
-        const gas = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (gas) tx.setGasPayment([{ objectId: gas.coinObjectId, version: gas.version, digest: gas.digest }]);
+        await setNativeGasPayment(tx, addr);
 
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::join_room`,
@@ -664,14 +706,11 @@ async function main() {
         const tx = new Transaction();
         const addr = playerKp.toSuiAddress();
 
-        const coins = await client.getCoins({ owner: addr, coinType: NATIVE_COIN_TYPE });
-        const gas = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (gas) {
-            console.log(`${name} using gas for ready: ${gas.coinObjectId}`);
-            tx.setGasPayment([{ objectId: gas.coinObjectId, version: gas.version, digest: gas.digest }]);
-        }
+        await setNativeGasPayment(tx, addr);
 
-        const [feeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(ENTRY_FEE * 2)]);
+        const isOCT = COIN_TYPE === OCT_COIN_TYPE;
+        const coinAmount = isOCT ? testEntryFee * 2 : testEntryFee;
+        const feeCoin = await splitCoinFromOwner(tx, addr, COIN_TYPE, coinAmount);
 
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::ready_to_play`,
@@ -737,11 +776,7 @@ async function main() {
         console.log('\n--- Step 4: Start Round (Bomb Panic) ---');
 
         const tx = new Transaction();
-        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
-        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (p1Gas) {
-            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
-        }
+        await setNativeGasPayment(tx, p1Addr);
 
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::start_round`,
@@ -773,7 +808,7 @@ async function main() {
         return holder;
     }
 
-    async function stepPassBomb(initialHolder: string | null, numPasses = 4) {
+    async function stepPassBomb(initialHolder: string | null, numPasses = 3) {
         console.log(`\n--- Step 5: Pass Bomb (${numPasses} passes) ---`);
 
         for (let i = 0; i < numPasses; i++) {
@@ -883,11 +918,7 @@ async function main() {
         logStructure("GameState (Before Settlement)", endedGame);
 
         const tx = new Transaction();
-        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
-        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (p1Gas) {
-            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
-        }
+        await setNativeGasPayment(tx, p1Addr);
 
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::settle_round_with_hub`,
@@ -979,11 +1010,7 @@ async function main() {
 
         console.log('\n--- Step 8: Reset Game ---');
         const tx = new Transaction();
-        const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
-        const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        if (p1Gas) {
-            tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
-        }
+        await setNativeGasPayment(tx, p1Addr);
 
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::reset_game`,
@@ -992,7 +1019,7 @@ async function main() {
         });
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::reset_room`,
-            arguments: [tx.object(testRoomId), tx.object(testGameStateId)],
+            arguments: [tx.object(testRoomId), tx.object(gameCapId)],
             typeArguments: [COIN_TYPE],
         });
         tx.setGasBudget(GAS_BUDGET);
@@ -1005,17 +1032,17 @@ async function main() {
         logStructure("GameState (After Reset)", resetGame);
     }
 
-    // await stepJoinRoom();
-    // await stepReadyToPlay();
+    await stepJoinRoom();
+    await stepReadyToPlay();
 
-    // await sleep(5000);
-    // await stepStartRoom();
-    // const initialHolder = await stepStartRound();
-    // await stepPassBomb(initialHolder, 6);
-    // await stepTryExplodeLoop();
-    // await stepSettleRound();
-    // await stepResetGame();
-    await stepConfigureGame();
+    await sleep(5000);
+    await stepStartRoom();
+    const initialHolder = await stepStartRound();
+    await stepPassBomb(initialHolder, 6);
+    await stepTryExplodeLoop();
+    await stepSettleRound();
+    await stepResetGame();
+    // await stepConfigureGame();
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');
     console.log('════════════════════════════════════════════════════════════');
