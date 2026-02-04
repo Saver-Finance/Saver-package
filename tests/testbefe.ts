@@ -33,9 +33,45 @@ function toU64(value: bigint | number | string): bigint {
     return typeof value === 'bigint' ? value : BigInt(value);
 }
 
+class SharedObjectQueue {
+    private readonly queues = new Map<string, Promise<unknown>>();
+
+    async run<T>(keys: string[], task: () => Promise<T>): Promise<T> {
+        const uniq = Array.from(new Set(keys)).sort();
+        let chain = Promise.resolve();
+
+        for (const key of uniq) {
+            const prev = this.queues.get(key) ?? Promise.resolve();
+            chain = chain.then(async () => {
+                await prev;
+            });
+        }
+
+        const exec = chain.then(task).finally(() => {
+            for (const key of uniq) {
+                if (this.queues.get(key) === exec) this.queues.delete(key);
+            }
+        });
+
+        for (const key of uniq) {
+            this.queues.set(key, exec);
+        }
+
+        return exec;
+    }
+}
+
+const sharedObjectQueue = new SharedObjectQueue();
+
+function runWithSharedObjects<T>(keys: Array<string | undefined>, task: () => Promise<T>): Promise<T> {
+    const clean = keys.filter((k): k is string => typeof k === 'string' && k.length > 0);
+    return sharedObjectQueue.run(clean, task);
+}
+
 // Helper to sign and execute transactions
 async function signAndExecute(signer: Ed25519Keypair, tx: Transaction, description: string) {
     console.log(`\n📤 [${description}] Submitting transaction...`);
+
     try {
         const result = await client.signAndExecuteTransaction({
             signer,
@@ -63,10 +99,12 @@ async function signAndExecute(signer: Ed25519Keypair, tx: Transaction, descripti
             console.error(`❌ [${description}] Failed:`, result.effects?.status);
             throw new Error(`Transaction failed: ${result.effects?.status.error}`);
         }
-    } catch (e) {
+    } catch (e: any) {
+
         console.error(`❌ [${description}] Error:`, e);
         throw e;
     }
+
 }
 
 // Helper to log structures
@@ -440,53 +478,59 @@ async function createRoomAndGame(
     console.log(`\n\n🏗️  Creating ${roomName}...`);
 
     const creatorAddr = creator.toSuiAddress();
-    const tx = new Transaction();
 
-    await setNativeGasPayment(tx, creatorAddr);
+    const createRoomResult = await sharedObjectQueue.run(
+        [lobbyId, gameRegistry, config],
+        async () => {
+            const tx = new Transaction();
+            await setNativeGasPayment(tx, creatorAddr);
 
-    // Split creation fee (100 units)
-    const creationFeeCoin = await splitCoinFromOwner(tx, creatorAddr, COIN_TYPE, 100);
+            // Split creation fee (100 units)
+            const creationFeeCoin = await splitCoinFromOwner(tx, creatorAddr, COIN_TYPE, 100);
 
-    // Create room
-    tx.moveCall({
-        target: `${PACKAGE_ID}::gamehub::create_room`,
-        arguments: [
-            tx.object(gameRegistry),
-            tx.object(config),
-            tx.pure.u64(entryFee),
-            tx.pure.u8(maxPlayers),
-            creationFeeCoin
-        ],
-        typeArguments: [COIN_TYPE, `${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`]
-    });
+            // Create room
+            tx.moveCall({
+                target: `${PACKAGE_ID}::gamehub::create_room`,
+                arguments: [
+                    tx.object(gameRegistry),
+                    tx.object(config),
+                    tx.pure.u64(entryFee),
+                    tx.pure.u8(maxPlayers),
+                    creationFeeCoin,
+                ],
+                typeArguments: [COIN_TYPE, `${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`],
+            });
 
-    tx.setGasBudget(GAS_BUDGET);
-
-    const createRoomResult = await signAndExecute(creator, tx, `Create ${roomName}`);
+            tx.setGasBudget(GAS_BUDGET);
+            return signAndExecute(creator, tx, `Create ${roomName}`);
+        }
+    );
     const roomId = findCreatedObjectId(createRoomResult.objectChanges, '::Room');
 
     if (!roomId) throw new Error(`Failed to find Room object ID for ${roomName}`);
     console.log(`  🏠 Room ID: ${roomId}`);
 
     // Wait for indexing
-    console.log(`  ⏳ Waiting 5s for indexing...`);
-    await new Promise(r => setTimeout(r, 5000));
+    console.log(`  ⏳ Waiting 15s for indexing...`);
+    await new Promise(r => setTimeout(r, 15000));
 
     // Create GameState for this room
-    const tx2 = new Transaction();
-    await setNativeGasPayment(tx2, creatorAddr);
+    const createGameResult = await sharedObjectQueue.run(
+        [lobbyId, roomId],
+        async () => {
+            const tx2 = new Transaction();
+            await setNativeGasPayment(tx2, creatorAddr);
 
-    tx2.moveCall({
-        target: `${PACKAGE_ID}::bomb_panic::create_game_for_room`,
-        arguments: [
-            tx2.object(lobbyId),
-            tx2.object(roomId)
-        ],
-        typeArguments: [COIN_TYPE]
-    });
-    tx2.setGasBudget(GAS_BUDGET);
+            tx2.moveCall({
+                target: `${PACKAGE_ID}::bomb_panic::create_game_for_room`,
+                arguments: [tx2.object(lobbyId), tx2.object(roomId)],
+                typeArguments: [COIN_TYPE],
+            });
+            tx2.setGasBudget(GAS_BUDGET);
 
-    const createGameResult = await signAndExecute(creator, tx2, `Create GameState for ${roomName}`);
+            return signAndExecute(creator, tx2, `Create GameState for ${roomName}`);
+        }
+    );
     const gameStateId = findCreatedObjectId(createGameResult.objectChanges, '::GameState');
 
     if (!gameStateId) throw new Error(`Failed to find GameState object ID for ${roomName}`);
@@ -512,6 +556,7 @@ async function main() {
 
     if (!process.env.ADMIN_PRIVATE_KEY) throw new Error("Missing ADMIN_PRIVATE_KEY");
     if (!process.env.USER_1) throw new Error("Missing USER_1 mnemonic");
+    if (!process.env.USER_2) throw new Error("Missing USER_2 mnemonic");
     const packageId = requireEnv("PACKAGE_ID", PACKAGE_ID);
     const lobbyId = requireEnv("LOBBY_ID", LOBBY_ID);
     const gameRegistry = requireEnv("GAME_REGISTRY", GAME_REGISTRY);
@@ -520,7 +565,7 @@ async function main() {
 
     const adminKp = Ed25519Keypair.fromSecretKey(decodeSuiPrivateKey(process.env.ADMIN_PRIVATE_KEY).secretKey);
     const player1Kp = Ed25519Keypair.deriveKeypair(process.env.USER_1);
-    const player2Kp = process.env.USER_2 ? Ed25519Keypair.deriveKeypair(process.env.USER_2) : null;
+    const player2Kp = Ed25519Keypair.deriveKeypair(process.env.USER_2);
 
     const adminAddr = adminKp.toSuiAddress();
     const p1Addr = player1Kp.toSuiAddress();
@@ -562,12 +607,11 @@ async function main() {
     console.log('\n\n═══════════════════════════════════════════════════════');
     console.log('INITIAL STATE - Before Creating Rooms');
     console.log('═══════════════════════════════════════════════════════');
-    console.log('No rooms or GameStates created yet.');
     await queryLobby(lobbyId);
 
     // Create Room 1: Small stakes, 2 players
     const room1 = await createRoomAndGame(
-        player1Kp,
+        player2Kp,
         lobbyId,
         gameRegistry,
         config,
@@ -726,7 +770,9 @@ async function main() {
             typeArguments: [COIN_TYPE]
         });
         tx.setGasBudget(GAS_BUDGET);
-        return signAndExecute(playerKp, tx, `Join ${name}`);
+        return runWithSharedObjects([testRoomId, testGameStateId], () =>
+            signAndExecute(playerKp, tx, `Join ${name}`)
+        );
     }
 
     async function readyToPlay(playerKp: Ed25519Keypair, name: string) {
@@ -745,7 +791,9 @@ async function main() {
             typeArguments: [COIN_TYPE]
         });
         tx.setGasBudget(GAS_BUDGET);
-        return signAndExecute(playerKp, tx, `Ready ${name}`);
+        return runWithSharedObjects([testRoomId], () =>
+            signAndExecute(playerKp, tx, `Ready ${name}`)
+        );
     }
 
     async function stepJoinRoom() {
@@ -790,7 +838,9 @@ async function main() {
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        await signAndExecute(player1Kp, tx, "Start Room");
+        await runWithSharedObjects([testRoomId, config], () =>
+            signAndExecute(player1Kp, tx, "Start Room")
+        );
 
         await sleep(5000);
     }
@@ -813,7 +863,9 @@ async function main() {
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        const startResult = await signAndExecute(player1Kp, tx, "Start Round");
+        const startResult = await runWithSharedObjects([testGameStateId, testRoomId], () =>
+            signAndExecute(player1Kp, tx, "Start Round")
+        );
         logStructure("Start Round Events", startResult.events);
 
         const startedEvent = startResult.events?.find(e => e.type.includes('::RoundStarted'));
@@ -871,7 +923,9 @@ async function main() {
             tx.setGasBudget(GAS_BUDGET);
 
             console.log(`  ${holderInfo.name} passing bomb...`);
-            const passResult = await signAndExecute(holderInfo.keypair, tx, `Pass Bomb #${i + 1}`);
+            const passResult = await runWithSharedObjects([testGameStateId], () =>
+                signAndExecute(holderInfo.keypair!, tx, `Pass Bomb #${i + 1}`)
+            );
 
             // Check if game ended during pass (e.g. explosion due to hold time or victory)
             const exploded = passResult.events?.some(e => e.type.includes('::Exploded'));
@@ -908,7 +962,9 @@ async function main() {
             });
             tx.setGasBudget(GAS_BUDGET);
 
-            const explodeResult = await signAndExecute(player1Kp, tx, `Try Explode #${attempts + 1}`);
+            const explodeResult = await runWithSharedObjects([testGameStateId], () =>
+                signAndExecute(player1Kp, tx, `Try Explode #${attempts + 1}`)
+            );
 
             const explodeEvent = explodeResult.events?.find(e => e.type.includes('::Exploded'));
             const victoryEvent = explodeResult.events?.find(e => e.type.includes('::Victory'));
@@ -951,7 +1007,9 @@ async function main() {
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        const settleResult = await signAndExecute(player1Kp, tx, "Settle Round");
+        const settleResult = await runWithSharedObjects([testGameStateId, testRoomId, gameCapId], () =>
+            signAndExecute(player1Kp, tx, "Settle Round")
+        );
 
         const roundSettledEvent = settleResult.events?.find(e => e.type.includes('::RoundSettled'));
         if (roundSettledEvent) {
@@ -1011,10 +1069,11 @@ async function main() {
         // Replace ADMIN_CAP_ID with your actual AdminCap object ID from .env or console
         const adminCapId = process.env.ADMIN_CAP;
         if (!adminCapId) throw new Error("Missing ADMIN_CAP_ID in .env");
+        const adminGameId = "0xd3da8445f7e33b142cab2c0653e20a5cf5f64bb21542c30ae03d4d131a64ccef";
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::configure_game_admin`,
             arguments: [
-                tx.object("0xd3da8445f7e33b142cab2c0653e20a5cf5f64bb21542c30ae03d4d131a64ccef"),
+                tx.object(adminGameId),
                 tx.object(adminCapId),
                 tx.pure.u64(60000),      // max_hold_time_ms (e.g., 15 seconds)
                 tx.pure.u64(300),        // explosion_rate_bps (e.g., 5%)
@@ -1025,7 +1084,9 @@ async function main() {
 
         tx.setGasBudget(GAS_BUDGET);
         // This MUST be signed by the Admin wallet that owns the AdminCap
-        await signAndExecute(player1Kp, tx, "Configure Game");
+        await runWithSharedObjects([adminGameId], () =>
+            signAndExecute(player1Kp, tx, "Configure Game")
+        );
     }
 
     async function stepResetGame() {
@@ -1046,7 +1107,9 @@ async function main() {
         });
         tx.setGasBudget(GAS_BUDGET);
 
-        await signAndExecute(player1Kp, tx, "Reset Game");
+        await runWithSharedObjects([testGameStateId, testRoomId, gameCapId], () =>
+            signAndExecute(player1Kp, tx, "Reset Game")
+        );
 
         await sleep(5000);
 
@@ -1061,10 +1124,85 @@ async function main() {
     // await stepStartRoom();
     // const initialHolder = await stepStartRound();
     // await stepPassBomb(initialHolder, 6);
+    async function testDeleteGameAndRoom() {
+        console.log('\n\n═══════════════════════════════════════════════════════');
+        console.log('🧪 TESTING DELETE FUNCTIONS');
+        console.log('═══════════════════════════════════════════════════════');
+
+        // Use Admin (User 2) for this test as requested
+        const deleterKp = adminKp;
+        const deleterAddr = adminAddr;
+
+        console.log(`Using Deleter: ${deleterAddr}`);
+
+        // // 1. Create a temporary room and game
+        // console.log("Creating temporary room for deletion...");
+        // const temp = await createRoomAndGame(
+        //     deleterKp,
+        //     lobbyId,
+        //     gameRegistry,
+        //     config,
+        //     50_000,
+        //     2,
+        //     "Temp Room for Deletion"
+        // );
+
+
+        const temp = {
+            roomId: "0x994386fa49c53f19eff98c95920c0c15d9968fc877c7bf678526c7e74abd7450",
+            gameStateId: "0x27aba2d395429a6170a3c6e85d0eed337a004d2f1664bb4a5efdbbc69799957c"
+        }
+        console.log(`Temp Room: ${temp.roomId}`);
+        console.log(`Temp Game: ${temp.gameStateId}`);
+
+        // 2. Delete GameState
+        console.log("\n🗑️  Deleting GameState...");
+        const tx1 = new Transaction();
+        await setNativeGasPayment(tx1, deleterAddr);
+        tx1.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::delete_game`,
+            arguments: [tx1.object(temp.gameStateId), tx1.object(lobbyId)],
+            typeArguments: [COIN_TYPE]
+        });
+        tx1.setGasBudget(GAS_BUDGET);
+        await runWithSharedObjects([temp.gameStateId, lobbyId], () =>
+            signAndExecute(deleterKp, tx1, "Delete GameState")
+        );
+
+        console.log("  ⏳ Waiting 10s for indexing...");
+        await sleep(10000);
+
+        // 3. Delete Room (must be empty/waiting - createRoomAndGame leaves it empty/waiting)
+        console.log("\n🗑️  Deleting Room...");
+        const tx2 = new Transaction();
+        await setNativeGasPayment(tx2, deleterAddr);
+        tx2.moveCall({
+            target: `${PACKAGE_ID}::gamehub::delete_room`,
+            arguments: [tx2.object(temp.roomId)],
+            typeArguments: [COIN_TYPE]
+        });
+        tx2.setGasBudget(GAS_BUDGET);
+        await runWithSharedObjects([temp.roomId], () =>
+            signAndExecute(deleterKp, tx2, "Delete Room")
+        );
+
+        console.log("\n✅ Deletion test passed.");
+        const allRooms = await queryRooms(roomIds);
+        const allGameStates = await queryGameStates(gameStateIds);
+        const { tableId } = await queryLobby(lobbyId);
+        console.log("\nRooms:", allRooms);
+        console.log("\nGameStates:", allGameStates);
+        console.log("\nLobby Table ID:", tableId);
+
+    }
+
     // await stepTryExplodeLoop();
-    await stepSettleRound();
+    // await stepSettleRound();
     // await stepResetGame();
     // await stepConfigureGame();
+
+    // Run the deletion test
+    await testDeleteGameAndRoom();
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');
     console.log('════════════════════════════════════════════════════════════');

@@ -9,6 +9,8 @@ use one::oct::OCT;
 use std::string::{Self, String};
 use one::table::{Self, Table};
 use std::type_name::{Self, TypeName};
+#[test_only]
+use gamehub::lobby;
 
 const FEE_RATE_DENOMINATOR: u64 = 1000; 
 const MIN_ENTRY_FEE: u64 = 100; // Minimum entry fee to prevent 0-pool games
@@ -496,7 +498,8 @@ public fun get_room_creation_fee(config: &Config): u64 {
 
 #[test_only]
 public fun init_for_testing(ctx: &mut TxContext) {
-    init(ctx)
+    init(ctx);
+    lobby::init_for_testing(ctx);
 }
 
 entry fun update_config(

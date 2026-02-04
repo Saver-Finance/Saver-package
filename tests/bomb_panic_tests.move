@@ -3,6 +3,7 @@ module games::bomb_panic_tests;
 
 use games::bomb_panic::{Self, GameState, GameHubRef, SettlementIntent};
 use gamehub::gamehub::{Self, Room, AdminCap, Config, GameRegistry};
+use gamehub::lobby::{Self, Lobby};
 use one::clock::{Self, Clock};
 use one::random::{Self, Random};
 use one::oct::OCT;
@@ -839,8 +840,13 @@ fun test_delete_game() {
     ts::next_tx(&mut scenario, ALICE);
     bomb_panic::join(&mut game, ts::ctx(&mut scenario));
     
+    // Take Lobby
+    let mut lobby = ts::take_shared<Lobby>(&scenario);
+
     // Delete Game (should succeed)
-    bomb_panic::delete_game(game);
+    bomb_panic::delete_game(game, &mut lobby);
+    
+    ts::return_shared(lobby);
     
     ts::end(scenario);
 }    

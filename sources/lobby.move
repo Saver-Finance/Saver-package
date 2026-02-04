@@ -31,6 +31,16 @@ public fun register_room(
     table::add(&mut lobby.room_to_game, room_id, game_state_id);
 }
 
+/// Unregister a room (cleanup)
+public fun unregister_room(
+    lobby: &mut Lobby,
+    room_id: object::ID,
+) {
+    if (table::contains(&lobby.room_to_game, room_id)) {
+        table::remove(&mut lobby.room_to_game, room_id);
+    };
+}
+
 /// Resolve room to gamestate (frontend helper)
 public fun get_game_state_id(
     lobby: &Lobby,

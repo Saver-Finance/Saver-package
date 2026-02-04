@@ -858,7 +858,10 @@ public entry fun prepare_next_round<T>(
 
 /// Delete a game state object.
 /// Constraint: Only allowed if Game is in Waiting phase and has at most 1 player.
-public entry fun delete_game<T>(game: GameState<T>) {
+public entry fun delete_game<T>(
+    game: GameState<T>, 
+    lobby: &mut gamehub::lobby::Lobby
+) {
     let GameState {
         id,
         name: _,
@@ -872,7 +875,7 @@ public entry fun delete_game<T>(game: GameState<T>) {
         holder_rewards: _,
         settlement_consumed: _,
         hub_ref: _,
-        room_id: _,
+        room_id,
         round_start_ms: _,
         reward_per_sec: _,
         config: _,
@@ -881,6 +884,8 @@ public entry fun delete_game<T>(game: GameState<T>) {
     assert!(is_waiting(&phase), E_WRONG_PHASE);
     assert!(vector::length(&players) <= 1, E_NOT_ENOUGH_PLAYERS); 
     
+    gamehub::lobby::unregister_room(lobby, room_id);
+
     object::delete(id);
 }
 
