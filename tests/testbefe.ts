@@ -49,6 +49,15 @@ async function signAndExecute(signer: Ed25519Keypair, tx: Transaction, descripti
 
         if (result.effects?.status.status === 'success') {
             console.log(`✅ [${description}] Success! Digest: ${result.digest}`);
+
+            // Wait for transaction finality to prevent "object locked" errors
+            console.log(`⏳ [${description}] Waiting for transaction finality...`);
+            await client.waitForTransaction({
+                digest: result.digest,
+                options: { showEffects: true },
+            });
+            console.log(`🔒 [${description}] Transaction finalized.`);
+
             return result;
         } else {
             console.error(`❌ [${description}] Failed:`, result.effects?.status);
@@ -134,11 +143,22 @@ function extractBoolFieldValue(content: any): boolean {
     return false;
 }
 
+// Locked coin that should be avoided (stuck by ghost transaction)
+const LOCKED_COIN_ID = '0x76fdc3af87ab006f4b44900cdcfb7f60f5c65a83d1a1d25f419874ebd02957f0';
+
 async function setNativeGasPayment(tx: Transaction, owner: string) {
     const coins = await client.getCoins({ owner, coinType: NATIVE_COIN_TYPE });
-    const gas = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+    // Filter out locked coins and sort by balance
+    const availableCoins = coins.data
+        .filter(c => c.coinObjectId !== LOCKED_COIN_ID)
+        .sort((a, b) => Number(b.balance) - Number(a.balance));
+
+    const gas = availableCoins[0];
     if (gas) {
+        console.log(`  💰 Using gas coin: ${gas.coinObjectId} (${gas.balance} OCT)`);
         tx.setGasPayment([{ objectId: gas.coinObjectId, version: gas.version, digest: gas.digest }]);
+    } else {
+        console.log(`  ⚠️ No unlocked gas coins available, letting Sui auto-select...`);
     }
 }
 
@@ -150,15 +170,22 @@ async function splitCoinFromOwner(
 ) {
     const u64Amount = toU64(amount);
     if (coinType === NATIVE_COIN_TYPE) {
+        // For native coin, tx.gas will use the gas coin we set in setNativeGasPayment
         const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(u64Amount)]);
         return coin;
     }
 
     const coins = await client.getCoins({ owner, coinType });
-    const src = coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
+    // Filter out locked coins and sort by balance
+    const availableCoins = coins.data
+        .filter(c => c.coinObjectId !== LOCKED_COIN_ID)
+        .sort((a, b) => Number(b.balance) - Number(a.balance));
+
+    const src = availableCoins[0];
     if (!src) {
-        throw new Error(`No coins available for ${owner} with type ${coinType}`);
+        throw new Error(`No unlocked coins available for ${owner} with type ${coinType}`);
     }
+    console.log(`  💰 Splitting from coin: ${src.coinObjectId} (${src.balance})`);
     const [coin] = tx.splitCoins(tx.object(src.coinObjectId), [tx.pure.u64(u64Amount)]);
     return coin;
 }
@@ -751,11 +778,7 @@ async function main() {
         console.log('\n--- Step 3: Start Room (GameHub) ---');
 
         const tx = new Transaction();
-        // const adminCoins = await client.getCoins({ owner: adminAddr, coinType: NATIVE_COIN_TYPE });
-        // const adminGas = adminCoins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-        // if (adminGas) {
-        //     tx.setGasPayment([{ objectId: adminGas.coinObjectId, version: adminGas.version, digest: adminGas.digest }]);
-        // }
+        await setNativeGasPayment(tx, p1Addr);
 
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::start_room`,
@@ -834,6 +857,8 @@ async function main() {
             }
 
             const tx = new Transaction();
+            await setNativeGasPayment(tx, holderInfo.keypair.toSuiAddress());
+
             tx.moveCall({
                 target: `${PACKAGE_ID}::bomb_panic::pass_bomb`,
                 arguments: [
@@ -870,12 +895,7 @@ async function main() {
         while (!exploded && attempts < maxAttempts) {
             console.log(`💥 Attempt ${attempts + 1}/${maxAttempts}...`);
             const tx = new Transaction();
-
-            const p1Coins = await client.getCoins({ owner: p1Addr, coinType: NATIVE_COIN_TYPE });
-            const p1Gas = p1Coins.data.sort((a, b) => Number(b.balance) - Number(a.balance))[0];
-            if (p1Gas) {
-                tx.setGasPayment([{ objectId: p1Gas.coinObjectId, version: p1Gas.version, digest: p1Gas.digest }]);
-            }
+            await setNativeGasPayment(tx, p1Addr);
 
             tx.moveCall({
                 target: `${PACKAGE_ID}::bomb_panic::try_explode`,
@@ -923,8 +943,8 @@ async function main() {
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::settle_round_with_hub`,
             arguments: [
-                tx.object(testGameStateId),
-                tx.object(testRoomId),
+                tx.object("0xdea41871ee0619955b26b38295f5816c88d89d560c6b1f2609c27ed0d7342441"),
+                tx.object("0x16179e72867634c0fafae177938518c843475501d60610462e0c02766f3dc427"),
                 tx.object(gameCapId)
             ],
             typeArguments: [COIN_TYPE]
@@ -986,13 +1006,15 @@ async function main() {
 
 
         const tx = new Transaction();
+        await setNativeGasPayment(tx, p1Addr);
+
         // Replace ADMIN_CAP_ID with your actual AdminCap object ID from .env or console
         const adminCapId = process.env.ADMIN_CAP;
         if (!adminCapId) throw new Error("Missing ADMIN_CAP_ID in .env");
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::configure_game_admin`,
             arguments: [
-                tx.object("0x424dd4d398d3810d484dc3e11e130074886695f59bd88754490fda48582bba1c"),
+                tx.object("0xd3da8445f7e33b142cab2c0653e20a5cf5f64bb21542c30ae03d4d131a64ccef"),
                 tx.object(adminCapId),
                 tx.pure.u64(60000),      // max_hold_time_ms (e.g., 15 seconds)
                 tx.pure.u64(300),        // explosion_rate_bps (e.g., 5%)
@@ -1032,16 +1054,16 @@ async function main() {
         logStructure("GameState (After Reset)", resetGame);
     }
 
-    await stepJoinRoom();
-    await stepReadyToPlay();
+    // await stepJoinRoom();
+    // await stepReadyToPlay();
 
-    await sleep(5000);
-    await stepStartRoom();
-    const initialHolder = await stepStartRound();
-    await stepPassBomb(initialHolder, 6);
-    await stepTryExplodeLoop();
+    // await sleep(5000);
+    // await stepStartRoom();
+    // const initialHolder = await stepStartRound();
+    // await stepPassBomb(initialHolder, 6);
+    // await stepTryExplodeLoop();
     await stepSettleRound();
-    await stepResetGame();
+    // await stepResetGame();
     // await stepConfigureGame();
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');

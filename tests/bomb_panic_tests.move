@@ -804,25 +804,47 @@ fun test_consume_settlement_intent_fails_second_time() {
     let mut room = ts::take_shared<Room<OCT>>(&scenario);
     bomb_panic::start_round(&rng, &mut game, &room, &clock, ts::ctx(&mut scenario));
     
-    // Explode - advance to 65s (100% zone)
+    // Explode
     advance_clock(&mut clock, 65000);
     bomb_panic::try_explode(&mut game, &clock, &rng, ts::ctx(&mut scenario));
     
-    // First consume - works
-    let intent = bomb_panic::consume_settlement_intent(&mut game);
-    bomb_panic::destroy_settlement_intent_for_testing(intent);
+    // Consume settlement
+    let intent1 = bomb_panic::consume_settlement_intent(&mut game);
+    bomb_panic::destroy_settlement_intent_for_testing(intent1);
     
-    // Second consume - should abort
+    // Try again -> fail
     let intent2 = bomb_panic::consume_settlement_intent(&mut game);
     bomb_panic::destroy_settlement_intent_for_testing(intent2);
     
-    // Cleanup
     clock::destroy_for_testing(clock);
     ts::return_shared(rng);
     ts::return_shared(room);
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
+
+#[test]
+fun test_delete_game() {
+    let mut scenario = ts::begin(ALICE);
+    
+    ts::next_tx(&mut scenario, ALICE);
+    let room_id = setup_room<OCT>(&mut scenario);
+    
+    ts::next_tx(&mut scenario, ALICE);
+    let hub_ref = create_hub_ref();
+    let name = string::utf8(b"Test Room");
+    let mut game = bomb_panic::create_game_state<OCT>(hub_ref, name, room_id, ts::ctx(&mut scenario));
+    
+    // Join Allowable amount (1 player)
+    ts::next_tx(&mut scenario, ALICE);
+    bomb_panic::join(&mut game, ts::ctx(&mut scenario));
+    
+    // Delete Game (should succeed)
+    bomb_panic::delete_game(game);
+    
+    ts::end(scenario);
+}    
+
 
 #[test]
 fun test_full_workflow_happy_path() {
@@ -950,3 +972,4 @@ fun test_full_workflow_happy_path() {
     bomb_panic::destroy_for_testing(game);
     ts::end(scenario);
 }
+// End of tests

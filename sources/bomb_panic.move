@@ -856,6 +856,34 @@ public entry fun prepare_next_round<T>(
     game.room_id = object::id_from_address(new_room_id);
 }
 
+/// Delete a game state object.
+/// Constraint: Only allowed if Game is in Waiting phase and has at most 1 player.
+public entry fun delete_game<T>(game: GameState<T>) {
+    let GameState {
+        id,
+        name: _,
+        phase,
+        round_id: _,
+        players,
+        pool_value: _,
+        entry_fee_per_player: _,
+        bomb_holder: _,
+        holder_start_ms: _,
+        holder_rewards: _,
+        settlement_consumed: _,
+        hub_ref: _,
+        room_id: _,
+        round_start_ms: _,
+        reward_per_sec: _,
+        config: _,
+    } = game;
+
+    assert!(is_waiting(&phase), E_WRONG_PHASE);
+    assert!(vector::length(&players) <= 1, E_NOT_ENOUGH_PLAYERS); 
+    
+    object::delete(id);
+}
+
 #[test_only]
 public fun debug_round_id<T>(g: &GameState<T>): u64 { g.round_id }
 

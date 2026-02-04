@@ -81,41 +81,13 @@ module gamehub::gamehub_tests {
     }
 
     fun start_room_helper(scenario: &mut Scenario) {
-        next_tx(scenario, ADMIN);
+        next_tx(scenario, PLAYER_1);
         {
-<<<<<<< HEAD
-            let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            let entry_fee = 10_000_000_000;
-            
-            // Join
-            gamehub::join_room(&mut room, ctx(&mut scenario));
-            
-            // Ready with entry fee (OCT requires 2x entry fee)
-            let coin = coin::mint_for_testing<OCT>(entry_fee * 2, ctx(&mut scenario));
-            gamehub::ready_to_play(&mut room, coin, ctx(&mut scenario));
-            
-            test_scenario::return_shared(room);
-        };
-
-        // --- Step 7: Player 1 starts game ---
-        next_tx(&mut scenario, PLAYER_1);
-        {
-            let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            let config = test_scenario::take_shared<Config>(&scenario);
-
-            gamehub::start_room(&mut room, &config, ctx(&mut scenario));
-
-            test_scenario::return_shared(room);
-            test_scenario::return_shared(config);
-=======
             let mut room = test_scenario::take_shared<Room<OCT>>(scenario);
-            let admin_cap = test_scenario::take_from_sender<AdminCap>(scenario);
             let config = test_scenario::take_shared<Config>(scenario);
-            gamehub::start_room(&mut room, &admin_cap, &config, ctx(scenario));
+            gamehub::start_room(&mut room, &config, ctx(scenario));
             test_scenario::return_shared(room);
             test_scenario::return_shared(config);
-            test_scenario::return_to_sender(scenario, admin_cap);
->>>>>>> feature/saver-lending-core-v2
         };
     }
 
@@ -220,65 +192,8 @@ module gamehub::gamehub_tests {
         join_room_helper(&mut scenario, PLAYER_1);
         ready_helper(&mut scenario, PLAYER_1, ENTRY_FEE * 2);
 
-<<<<<<< HEAD
-            gamehub::update_config(&mut config, &admin_cap, 0, INSURANCE, 0);
-            let game_cap = gamehub::register_game<ROCK_PAPER_SCISSORS>(&mut registry, &admin_cap, b"Test", ctx(&mut scenario));
-
-            test_scenario::return_shared(registry);
-            test_scenario::return_shared(config);
-            test_scenario::return_to_sender(&scenario, admin_cap);
-            transfer::public_transfer(game_cap, ADMIN);
-        };
-
-        // Create room
-        next_tx(&mut scenario, ADMIN);
-        {
-            let registry = test_scenario::take_shared<GameRegistry>(&scenario);
-            let config = test_scenario::take_shared<Config>(&scenario);
-            let creation_fee = coin::mint_for_testing<OCT>(0, ctx(&mut scenario));
-            
-            gamehub::create_room<OCT, ROCK_PAPER_SCISSORS>(
-                &registry, &config, 10_000_000_000, 2, creation_fee, ctx(&mut scenario)
-            );
-
-            test_scenario::return_shared(registry);
-            test_scenario::return_shared(config);
-        };
-
-        // Player 1 joins and readies
-        next_tx(&mut scenario, PLAYER_1);
-        {
-            let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            gamehub::join_room(&mut room, ctx(&mut scenario));
-            let coin = coin::mint_for_testing<OCT>(20_000_000_000, ctx(&mut scenario));
-            gamehub::ready_to_play(&mut room, coin, ctx(&mut scenario));
-            test_scenario::return_shared(room);
-        };
-
-        // Player 2 joins but does NOT ready
-        next_tx(&mut scenario, PLAYER_2);
-        {
-            let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            gamehub::join_room(&mut room, ctx(&mut scenario));
-            // NO ready_to_play call!
-            test_scenario::return_shared(room);
-        };
-
-        // Try to start - should fail
-        next_tx(&mut scenario, PLAYER_1);
-        {
-            let mut room = test_scenario::take_shared<Room<OCT>>(&scenario);
-            let config = test_scenario::take_shared<Config>(&scenario);
-
-            gamehub::start_room(&mut room, &config, ctx(&mut scenario));
-
-            test_scenario::return_shared(room);
-            test_scenario::return_shared(config);
-        };
-=======
         join_room_helper(&mut scenario, PLAYER_2);
         // Player 2 does NOT ready
->>>>>>> feature/saver-lending-core-v2
 
         start_room_helper(&mut scenario); // Should fail
         test_scenario::end(scenario);
@@ -417,37 +332,6 @@ module gamehub::gamehub_tests {
         init_test_state(&mut scenario);
 
         join_room_helper(&mut scenario, PLAYER_1);
-        ready_helper(&mut scenario, PLAYER_1, 20_000); // Small amount for manual check in test logic? No, must match ENTRY_FEE if not mocked properly, but helper handles it. Wait, helper uses ENTRY_FEE const unless passed.
-        // In helper I used `amount` param.
-        // The original test used 20_000, but ENTRY_FEE is 10_000_000_000.
-        // Wait, original test step 5 used `10_000_000_000`.
-        // But `test_reset_room` in original file used `20_000`? 
-        // Let's check original file.
-        // Lines 661-662: `let coin = coin::mint_for_testing<OCT>(20_000, ...)`
-        // And creation fee was 10_000 in `create_room` call in that test?
-        // Line 650: `gamehub::create_room<OCT, ...>(..., 10_000, ...)`
-        // Ah, `test_reset_room` used different entry fee (10_000) than other tests (10_000_000_000).
-        // My helper `init_test_state` uses `ENTRY_FEE` (10_000_000_000).
-        // I should stick to `ENTRY_FEE` to be consistent with the helper.
-        // So I should pass `ENTRY_FEE * 2` to ready helper.
-        
-        // Re-doing logic for this test to match helper's config
-        // ENTRY_FEE is 10_000_000_000
-        
-        // 1. Join & Ready P1
-        // (already joined above) - wait, I need to call ready.
-        // I used `join_room_helper` above for P1.
-        // Now ready P1.
-        // NOTE: In `test_reset_room` I was starting fresh.
-        // `init_test_state` does the setup.
-        // So I just need to call join/ready for P1 and P2 using consistent constants.
-        
-        // Resetting scenario for clarity in this thought trace (I am writing the file content).
-        // Back to writing code.
-        
-        // P1 Ready
-        // NOTE: previous call to `join_room_helper` was P1.
-        // I need to ready P1.
         ready_helper(&mut scenario, PLAYER_1, ENTRY_FEE * 2);
         
         // P2 Join & Ready
@@ -518,6 +402,32 @@ module gamehub::gamehub_tests {
         // Fail Settle: Try to payout more than remaining pool (18e9)
         settle_helper(&mut scenario, vector[PLAYER_1, PLAYER_2], vector[18_000_000_001, 0]);
 
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_delete_room() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        init_test_state(&mut scenario);
+
+        join_room_helper(&mut scenario, PLAYER_1);
+
+        // Verify joined
+        next_tx(&mut scenario, PLAYER_1);
+        {
+            let room = test_scenario::take_shared<Room<OCT>>(&scenario);
+            assert!(gamehub::get_player_count(&room) == 1, 0);
+            test_scenario::return_shared(room);
+        };
+
+        // Delete Room (should work with 1 player)
+        next_tx(&mut scenario, ADMIN);
+        {
+            let room = test_scenario::take_shared<Room<OCT>>(&scenario);
+            gamehub::delete_room(room, ctx(&mut scenario));
+            // room is consumed, so we don't return it
+        };
+        
         test_scenario::end(scenario);
     }
 }

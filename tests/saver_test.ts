@@ -17,10 +17,6 @@ const keypair = Ed25519Keypair.deriveKeypair(private_key);
 console.log(keypair.getPublicKey().toSuiAddress());
 
 const packageId = "0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a";
-<<<<<<< HEAD
-
-=======
->>>>>>> feature/saver-lending-core-v2
 const limiter_config = "0xed5d3a8a367d55964f5dbaba36d02da65e26f033c7e2cdd314ce16771beba06a";
 const upgrade_cap = process.env.UPGRADE_CAP!;
 const yoct_cap = "0xedb2bec699c90222522239f69200d6464abc40b3a1c8f5aefa52602d85263b47";
@@ -43,10 +39,6 @@ const oct = '0x2::oct::OCT';
 const yoct = '0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a::yoct::YOCT';
 const sroct = '0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a::sroct::SROCT';
 const ayoct = '0xcdf85ff5d1373a551e659b3e6cf4f6dde126e5b040bfdb4392305708fd42d55a::ayoct::AYOCT';
-<<<<<<< HEAD
-=======
-
->>>>>>> feature/saver-lending-core-v2
 
 async function init_mock_vault() {
     const moduleName = "mock";
@@ -539,13 +531,6 @@ async function main() {
     //await grant_keeper_cap();
     //await create_adapter_config();
     //await create_ut();
-<<<<<<< HEAD
-    //await create_liquidate_limiter();
-    //await create_rd_vault();
-    //await init_user_info();
-    //await deposit("1000000000"); // deposit 1e9 OCT, balance hien tai 10004662000
-    await mint("100000000") // mint 1e8, mint them 6e8 de xem co revert khong, ltv = 50%
-=======
     // await create_liquidate_limiter();
     // await create_rd_vault();
     
@@ -553,16 +538,11 @@ async function main() {
 
     // await deposit("1000000000"); // deposit 1e9 OCT, balance hien tai 10004662000
     // await mint("2000000") // mint 1e8, mint them 6e8 de xem co revert khong, ltv = 50%
->>>>>>> feature/saver-lending-core-v2
     //await burn(); // burn 1e7
     // còn 9e7 sroct, debt cũng còn 9e7 , hiện có  8998969252 
     //await repay("90000000"); // repay tất cả debt bằng 9e7 oct, balance sau repay 8907834276, debt = 0
     // redeem pool oct balance: 9e7
-<<<<<<< HEAD
-    //await redeem(); // dùng toàn bộ sroct để redeem, balance hiện tại 8907834276
-=======
     // await redeem(); // dùng toàn bộ sroct để redeem, balance hiện tại 8907834276
->>>>>>> feature/saver-lending-core-v2
     // sau redeem đã hết sroct, oct hiện tại 8997101416 
     // chênh lệnh 8997101416 - 8907834276 = 89,267,140 = 9e7 - fee
     //await change_minter();
