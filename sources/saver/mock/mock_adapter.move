@@ -142,6 +142,29 @@ public fun deposit<U, T, S>(
     );
 }
 
+public fun deposit2<U, T, S>(
+    config: &AdapterConfig, 
+    token_in: Coin<T>,
+    user_info: Option<UserInfo<T, S>>, 
+    vault: &mut Vault<T>, 
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    mock_vault: &MockVault<U, T>,
+    ctx: &mut TxContext
+) {
+    let price = get_price(mock_vault);
+    saver::deposit2(
+        &config.adapter_cap,
+        token_in,
+        price,
+        user_info,
+        vault,
+        minter,
+        clock,
+        ctx
+    );
+}
+
 public fun deposit_underlying<U, T, S>(
     ut: &UnderlyingToken<U, T, S>, 
     config: &AdapterConfig, 
@@ -167,6 +190,33 @@ public fun deposit_underlying<U, T, S>(
   
     );
 }
+
+public fun deposit_underlying2<U, T, S>(
+    ut: &UnderlyingToken<U, T, S>, 
+    config: &AdapterConfig, 
+    token_in: Coin<U>, 
+    user_info: Option<UserInfo<T, S>>,
+    vault: &mut Vault<T>,
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    mock_vault:&mut MockVault<U, T>,
+    ctx: &mut TxContext
+) {
+    assert!(ut.enable == true, freezeVault());
+    let yt_coin = wrap<U, T>(token_in, mock_vault, ctx);
+    let price = get_price(mock_vault);
+    saver::deposit2(
+        &config.adapter_cap,
+        yt_coin,
+        price,
+        user_info,
+        vault,
+        minter,
+        clock,
+        ctx
+    );
+}
+
 
 public fun withdraw<U, T, S>(    
     ut: &UnderlyingToken<U, T ,S>,

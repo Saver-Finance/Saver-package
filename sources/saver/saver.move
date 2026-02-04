@@ -329,6 +329,36 @@ public fun poke<T, S>(
     i_distribute_unlock_credit(yt_info, clock);
     i_poke(&mut user_info.debt, &mut user_info.profit, user_yt_info, yt_info);
 }
+
+public fun deposit2<T, S>(
+    _: &AdapterCap, 
+    token: Coin<T>, 
+    price: u128,
+    mut o_user_info: Option<UserInfo<T, S>>, 
+    vault: &mut Vault<T>,
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    ctx: &mut TxContext
+) {
+    let mut user_info: UserInfo<T, S>;
+    if(option::is_none(&o_user_info)) {
+        user_info = i_init_user_info<T, S>(minter, ctx);
+    }
+    else {
+        user_info = option::extract(&mut o_user_info);
+    };
+    option::destroy_none(o_user_info);
+    let tname = type_name::get<T>();
+    assert!(table::contains(&minter.ytc, tname), 0);
+    let yt_info = table::borrow_mut(&mut minter.ytc, tname);
+    let user_yt_info = &mut user_info.deposited_token;
+    assert!(yt_info.enabled, freezeVault());
+    let amount = coin::value(&token) as u128;
+    let _ = i_deposit(&mut user_info.debt, &mut user_info.profit, amount, price, user_yt_info, yt_info, clock);
+    let coin_balance = coin::into_balance(token);
+    balance::join(&mut vault.reserve, coin_balance);   
+    transfer::transfer(user_info, ctx.sender());
+}
  
 
 public fun deposit<T, S>(
@@ -862,6 +892,25 @@ fun split_coin<T>(vault: &mut Vault<T>, amount: u64, ctx: &mut TxContext): Coin<
     let balance_receive = balance::split(&mut vault.reserve, amount as u64);
     let coin_receive = coin::from_balance(balance_receive, ctx);
     (coin_receive)
+}
+
+fun i_init_user_info<T, S>(minter: &Minter<S>, ctx: &mut TxContext): UserInfo<T, S> {
+    let tname = type_name::get<T>();
+    assert!(table::contains(&minter.ytc, tname), 0);
+    let new_user = UserInfo<T, S> {
+        id: object::new(ctx),
+        debt: 0,
+        profit: 0,
+        owner: ctx.sender(),
+        deposited_token: UserDepositInfo {
+            last_accrue_weight: 0,
+            shares_balance: 0,
+            mint_allowance: 0,
+            withdraw_allowance: table::new<address, u128>(ctx)
+        },
+     
+    };
+    new_user
 }
 
 // TEST ONLY FUNCTION
