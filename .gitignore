@@ -9,4 +9,4 @@ node_modules
 .env
 /sdk/*
 /sdk (1)/*
-/saver_backend-main
+/saver_backend-main/*

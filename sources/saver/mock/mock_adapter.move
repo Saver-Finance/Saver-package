@@ -3,14 +3,12 @@ module saver::mock_adapter;
 use saver::mock::{Self, Vault as MockVault};
 use saver::redeem_pool::{Self, Config as RedeemPoolConfig, Vault as RedeemPoolVault};
 use saver::limiter::{Self, Limiter, LimiterAccessCap, LimiterConfig};
+use saver::insurance_pool::{Self, InsurancePool};
 use saver::saver::{Self, AdapterCap, Config, UserInfo, Vault, Minter, KeeperCap};
-use saver::error::{Self, unAuthorize, notEnoughBalance, alreadyInitialize, freezeVault};
-use std::option::{Self, Option};
-use one::clock::{Clock, Self};
-use one::object::{Self, UID};
-use one::transfer::{Self};
-use one::tx_context::{Self, TxContext};
-use one::coin::{Self, Coin, TreasuryCap, CoinMetadata};
+use saver::error::{unAuthorize, freezeVault};
+use std::option;
+use one::clock::Clock;
+use one::coin::{Self, Coin};
 
 
 
@@ -142,6 +140,29 @@ public fun deposit<U, T, S>(
     );
 }
 
+public fun deposit2<U, T, S>(
+    config: &AdapterConfig, 
+    token_in: Coin<T>,
+    user_info: Option<UserInfo<T, S>>, 
+    vault: &mut Vault<T>, 
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    mock_vault: &MockVault<U, T>,
+    ctx: &mut TxContext
+) {
+    let price = get_price(mock_vault);
+    saver::deposit2(
+        &config.adapter_cap,
+        token_in,
+        price,
+        user_info,
+        vault,
+        minter,
+        clock,
+        ctx
+    );
+}
+
 public fun deposit_underlying<U, T, S>(
     ut: &UnderlyingToken<U, T, S>, 
     config: &AdapterConfig, 
@@ -167,6 +188,33 @@ public fun deposit_underlying<U, T, S>(
   
     );
 }
+
+public fun deposit_underlying2<U, T, S>(
+    ut: &UnderlyingToken<U, T, S>, 
+    config: &AdapterConfig, 
+    token_in: Coin<U>, 
+    user_info: Option<UserInfo<T, S>>,
+    vault: &mut Vault<T>,
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    mock_vault:&mut MockVault<U, T>,
+    ctx: &mut TxContext
+) {
+    assert!(ut.enable == true, freezeVault());
+    let yt_coin = wrap<U, T>(token_in, mock_vault, ctx);
+    let price = get_price(mock_vault);
+    saver::deposit2(
+        &config.adapter_cap,
+        yt_coin,
+        price,
+        user_info,
+        vault,
+        minter,
+        clock,
+        ctx
+    );
+}
+
 
 public fun withdraw<U, T, S>(    
     ut: &UnderlyingToken<U, T ,S>,
@@ -274,6 +322,7 @@ public fun burn<T, S>(
     );
 }
 
+#[allow(lint(self_transfer))]
 public fun repay<U, T, S>(     
     config: &AdapterConfig,
     ut: &mut UnderlyingToken<U, T ,S>,
@@ -296,13 +345,13 @@ public fun repay<U, T, S>(
         minter,
         clock,
         price,
-        conversion_factor
+        conversion_factor,
+        &mut ut.limiter,
+        &ut.limiter_cap
     );
  
-    let current_repay_limit = limiter::get(&ut.limiter, clock);
-    assert!(amount_to_repay as u128 <= current_repay_limit, 0);
-    limiter::decrease(&ut.limiter_cap, &mut ut.limiter, clock, amount_to_repay as u128);
-   
+
+    
     if(amount_to_repay < amount) {
         let coin_to_repay = coin::split(&mut token, amount_to_repay, ctx);
         redeem_pool::donate(rp_config, coin_to_repay, rp_vault);
@@ -382,8 +431,47 @@ public fun harvest<U, T, S>(
     assert!(coin::value(&ut_coin) as u128 >= distribute_amount + fee, 0);
     let coin_to_fee_receiver = coin::split(&mut ut_coin, fee as u64, ctx);
     transfer::public_transfer(coin_to_fee_receiver, fee_receiver);
+    
     redeem_pool::donate(rp_config, ut_coin, rp_vault);
 }
+
+public fun harvest_to_pool<U, T, S>(
+    config: &AdapterConfig,
+    ut: &mut UnderlyingToken<U, T ,S>,
+    _: &KeeperCap,
+    minter: &mut Minter<S>,
+    vault: &mut Vault<T>,
+    clock: &Clock,
+    minimum_amount_out: u128,
+    rp_config: &RedeemPoolConfig,
+    rp_vault: &mut RedeemPoolVault<U, S>,
+    insurance_pool: &mut InsurancePool<U>,
+    mock_vault: &mut MockVault<U, T>,
+    ctx: &mut TxContext
+) {
+    let price = mock::price(mock_vault);
+    let conversion_factor = 10u128.pow(ut.dt_decimals - ut.decimals);
+    let (distribute_amount, fee, _, unwrap_coin) = saver::harvest<T, S>(
+        &config.adapter_cap,
+        _,
+        minter,
+        clock,
+        vault,
+        price,
+        minimum_amount_out,
+        conversion_factor,
+        ctx
+    );
+
+    let mut ut_coin = unwrap<U, T>(unwrap_coin, mock_vault, ctx);
+    assert!(coin::value(&ut_coin) as u128 >= distribute_amount + fee, 0);
+    
+    let coin_to_fee = coin::split(&mut ut_coin, fee as u64, ctx);
+    insurance_pool::deposit_fee(insurance_pool, coin_to_fee);
+    
+    redeem_pool::donate(rp_config, ut_coin, rp_vault);
+}
+
 
 // TODO: Implement get_price function to get price between yield token and underlying token
 fun get_price<U, T>(vault: &MockVault<U, T>): u128 {
@@ -408,6 +496,5 @@ fun unwrap<U, T>(
 ): Coin<U> {
     mock::withdraw(vault, token, ctx)
 }
-
 
 

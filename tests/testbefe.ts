@@ -148,6 +148,14 @@ function sleep(ms: number) {
     return new Promise((r) => setTimeout(r, ms));
 }
 
+async function measure<T>(label: string, fn: () => Promise<T>): Promise<{ value: T; ms: number }> {
+    const start = Date.now();
+    const value = await fn();
+    const ms = Date.now() - start;
+    console.log(`⏱️  ${label}: ${ms} ms`);
+    return { value, ms };
+}
+
 function getMoveObjectContent(obj: any) {
     const c = obj?.data?.content;
     return c?.dataType === 'moveObject' ? c : undefined;
@@ -261,6 +269,36 @@ async function fetchTableAsMap<T>(
     }
 
     return out;
+}
+
+async function compareRoomQueryTimes(roomIds: string[], lobbyTableId: string) {
+    if (!roomIds.length) {
+        console.log('\n⏱️  Skipping Room timing comparison (no room IDs).');
+        return;
+    }
+
+    console.log('\n⏱️  Comparing Room query times...');
+
+    await measure('Shared objects (multiGetObjects)', async () =>
+        client.multiGetObjects({ ids: roomIds, options: { showContent: true } })
+    );
+
+    const { value: dyn } = await measure('Lobby table (getDynamicFields)', async () =>
+        client.getDynamicFields({ parentId: lobbyTableId, limit: 200 })
+    );
+
+    const lobbyRoomIds = dyn.data
+        .map((f: any) => extractDynFieldNameValue(f.name))
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+    if (!lobbyRoomIds.length) {
+        console.log('⏱️  No room IDs found via lobby table.');
+        return;
+    }
+
+    await measure('Lobby table -> rooms (multiGetObjects)', async () =>
+        client.multiGetObjects({ ids: lobbyRoomIds, options: { showContent: true } })
+    );
 }
 
 async function fetchReadyPlayers(roomId: string): Promise<Map<string, boolean>> {
@@ -999,8 +1037,8 @@ async function main() {
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::settle_round_with_hub`,
             arguments: [
-                tx.object("0xdea41871ee0619955b26b38295f5816c88d89d560c6b1f2609c27ed0d7342441"),
-                tx.object("0x16179e72867634c0fafae177938518c843475501d60610462e0c02766f3dc427"),
+                tx.object("0x2ae0c64f22ef69e131aa38729d9c8907b9afe2de8fd17de2e7fdd22f0010fd55"),
+                tx.object("0xcaf9d12d1dd401d002201702d5098876bd910c60cc427c6a0727747b5a289801"),
                 tx.object(gameCapId)
             ],
             typeArguments: [COIN_TYPE]
@@ -1008,7 +1046,7 @@ async function main() {
         tx.setGasBudget(GAS_BUDGET);
 
         const settleResult = await runWithSharedObjects([testGameStateId, testRoomId, gameCapId], () =>
-            signAndExecute(player1Kp, tx, "Settle Round")
+            signAndExecute(player2Kp, tx, "Settle Round")
         );
 
         const roundSettledEvent = settleResult.events?.find(e => e.type.includes('::RoundSettled'));
@@ -1093,22 +1131,22 @@ async function main() {
 
         console.log('\n--- Step 8: Reset Game ---');
         const tx = new Transaction();
-        await setNativeGasPayment(tx, p1Addr);
+        await setNativeGasPayment(tx, p2Addr);
 
         tx.moveCall({
             target: `${PACKAGE_ID}::bomb_panic::reset_game`,
-            arguments: [tx.object(testGameStateId)],
+            arguments: [tx.object("0x2ae0c64f22ef69e131aa38729d9c8907b9afe2de8fd17de2e7fdd22f0010fd55")],
             typeArguments: [COIN_TYPE]
         });
         tx.moveCall({
             target: `${PACKAGE_ID}::gamehub::reset_room`,
-            arguments: [tx.object(testRoomId), tx.object(gameCapId)],
+            arguments: [tx.object("0xcaf9d12d1dd401d002201702d5098876bd910c60cc427c6a0727747b5a289801"), tx.object(gameCapId)],
             typeArguments: [COIN_TYPE],
         });
         tx.setGasBudget(GAS_BUDGET);
 
         await runWithSharedObjects([testGameStateId, testRoomId, gameCapId], () =>
-            signAndExecute(player1Kp, tx, "Reset Game")
+            signAndExecute(player2Kp, tx, "Reset Game")
         );
 
         await sleep(5000);
@@ -1117,13 +1155,6 @@ async function main() {
         logStructure("GameState (After Reset)", resetGame);
     }
 
-    // await stepJoinRoom();
-    // await stepReadyToPlay();
-
-    // await sleep(5000);
-    // await stepStartRoom();
-    // const initialHolder = await stepStartRound();
-    // await stepPassBomb(initialHolder, 6);
     async function testDeleteGameAndRoom() {
         console.log('\n\n═══════════════════════════════════════════════════════');
         console.log('🧪 TESTING DELETE FUNCTIONS');
@@ -1196,13 +1227,77 @@ async function main() {
 
     }
 
+    async function testCreateRoomGame() {
+        console.log('\n\n🧪 TESTING SINGLE-TX ROOM & GAME CREATION');
+
+        const tx1 = new Transaction();
+        const creatorAddr = player2Kp.toSuiAddress();
+        await setNativeGasPayment(tx1, creatorAddr);
+
+        // Split creation fee (100 units)
+        const creationFeeCoin = await splitCoinFromOwner(tx1, creatorAddr, OCT_COIN_TYPE, 100);
+
+
+        tx1.moveCall({
+            target: `${PACKAGE_ID}::bomb_panic::create_room_and_game`,
+            arguments: [
+                tx1.object(gameRegistry),
+                tx1.object(config),
+                tx1.object(lobbyId),
+                tx1.pure.u64(100), // entry fee 
+                tx1.pure.u8(2),    // max players
+                creationFeeCoin
+            ],
+            typeArguments: [COIN_TYPE]
+        });
+        tx1.setGasBudget(GAS_BUDGET);
+
+        // We are touching GameRegistry, Config, and Lobby
+        const result = await runWithSharedObjects([gameRegistry, config, lobbyId], () =>
+            signAndExecute(player2Kp, tx1, "Create Room and Game (Single TX)")
+        );
+
+        if (result.effects?.status.status === 'success') {
+            const roomId = findCreatedObjectId(result.objectChanges, '::Room');
+            const gameStateId = findCreatedObjectId(result.objectChanges, '::GameState');
+
+            console.log(`\n✅ Single TX Creation Success!`);
+            console.log(`  🏠 Created Room ID: ${roomId}`);
+            console.log(`  🎮 Created GameState ID: ${gameStateId}`);
+
+            if (roomId && gameStateId) {
+                console.log("  ⏳ Waiting 10s for indexing...");
+                await sleep(10000);
+
+                await queryRooms([roomId]);
+                await queryGameStates([gameStateId]);
+            }
+        }
+
+        const lobby = await queryLobby(lobbyId);
+        console.log("\nLobby:", lobby);
+    }
+
+
+
+
+    // await stepJoinRoom();
+    // await stepReadyToPlay();
+
+    // await sleep(5000);
+    // await stepStartRoom();
+    // const initialHolder = await stepStartRound();
+    // await stepPassBomb(initialHolder, 6);
+
+
     // await stepTryExplodeLoop();
     // await stepSettleRound();
-    // await stepResetGame();
+    await stepResetGame();
     // await stepConfigureGame();
+    // await testCreateRoomGame();
 
     // Run the deletion test
-    await testDeleteGameAndRoom();
+    // await testDeleteGameAndRoom();
     console.log('\n\n════════════════════════════════════════════════════════════');
     console.log('✅✅✅ FULL INTEGRATION TEST COMPLETE! ✅✅✅');
     console.log('════════════════════════════════════════════════════════════');

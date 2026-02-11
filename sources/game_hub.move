@@ -146,7 +146,7 @@ public fun create_room_internal<T, G>(
     max_players: u8,
     mut creation_fee: Coin<T>,
     ctx: &mut TxContext
-) {
+): object::ID {
     let game_type = type_name::with_defining_ids<G>();
 
     assert!(is_game_registered(registry, game_type), EGameNotRegistered);
@@ -181,7 +181,9 @@ public fun create_room_internal<T, G>(
         status: Status::Waiting,
         ready_players: table::new(ctx),
     };
+    let id = object::id(&room);
     transfer::share_object(room);
+    id
 }
 
 
@@ -533,7 +535,8 @@ entry fun create_room<T, G>(
     creation_fee: Coin<T>,
     ctx: &mut TxContext
 ) {
-    create_room_internal<T, G>(registry, config, entry_fee, max_players, creation_fee, ctx);
+
+    let _ = create_room_internal<T, G>(registry, config, entry_fee, max_players, creation_fee, ctx);
 }
 
 entry fun join_room<T>(

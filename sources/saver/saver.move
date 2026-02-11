@@ -3,24 +3,71 @@
 module saver::saver;
 
 use one::balance::{Self, Balance};
-use one::coin::{Self, Coin, TreasuryCap, CoinMetadata};
+use one::coin::{Self, Coin, TreasuryCap};
 use one::table::{Self, Table};
-use saver::error::{Self, unAuthorize, notEnoughBalance, alreadyInitialize, freezeVault, overMaximumExpectedValue, mintingLimitExceed};
-use saver::limiter::{Self, Limiter, LimiterConfig, get, LimiterAccessCap, take_limiter_access_cap};
-use std::option::{Self, Option};
-use one::clock::Clock;
-use one::object::{Self, UID};
-use one::transfer::{Self};
-use one::tx_context::{Self, TxContext};
-use one::clock;
+use saver::error::{unAuthorize, notEnoughBalance, freezeVault, overMaximumExpectedValue, mintingLimitExceed};
+use saver::limiter::{Self, Limiter, LimiterConfig, LimiterAccessCap, take_limiter_access_cap};
+use one::clock::{Self, Clock};
 use std::type_name::{Self, TypeName};
 use std::u128::min;
-use std::debug::{print};
-use one::linked_table::{Self, LinkedTable};
+
 
 
 const BPS: u128 = 10000;
 const FIXED_POINT_SCALAR: u128 = 1000000000000000000;
+
+// Events
+public struct DepositEvent has copy, drop {
+    user: address,
+    amount: u128,
+    shares: u128,
+    mint_allowance: u128
+}
+
+public struct WithdrawEvent has copy, drop {
+    user: address,
+    shares: u128,
+    amount_out: u128,
+    mint_allowance: u128
+}
+
+public struct MintEvent has copy, drop {
+    user: address,
+    amount: u64,
+    recipient: address,
+    new_debt: u128,
+    mint_allowance: u128
+}
+
+#[allow(unused_field)]
+public struct BurnEvent has copy, drop {
+    user: address,
+    amount: u128,
+    debt_reduced: u128,
+    mint_allowance: u128
+}
+
+public struct RepayEvent has copy, drop {
+    user: address,
+    amount_repaid: u64,
+    remaining_debt: u128,
+    mint_allowance: u128
+}
+
+#[allow(unused_field)]
+public struct HarvestEvent has copy, drop {
+    amount: u128, // Amount of underlying token harvested
+    fee: u128,
+    credit_distributed: u128
+}
+
+#[allow(unused_field)]
+public struct LiquidateEvent has copy, drop {
+    user: address,
+    shares_liquidated: u128,
+    amount_ut: u128,
+    debt_repaid: u128
+}
 
 public struct AdapterCap has key, store {
     id: UID,
@@ -33,12 +80,14 @@ public struct Config has key {
 }
 
 
+#[allow(unused_field)]
 public struct AgentCap has key {
     id: UID,
     owner: address
 }
 
 
+#[allow(unused_field)]
 public struct SentinelCap has key {
     id: UID,
     owner: address
@@ -211,9 +260,9 @@ entry fun create_vault<T, S>( // accept a new token to be used to mint S
     maximum_loss: u128,
     maximum_expected_value: u128,
     credit_unlock_rate: u128,
-    ctx: &mut TxContext
+    ctx: &TxContext
 ) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     assert!(!table::contains(&minter.ytc, tname), 0);
     let sender = ctx.sender();
     assert!(sender == config.admin, unAuthorize());
@@ -247,7 +296,7 @@ entry fun change_minter<T, S>(
     mut enabled: Option<bool>,
     ctx: &TxContext 
 ) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     assert!(table::contains(&minter.ytc, tname), 0);
     assert!(config.admin == ctx.sender(), unAuthorize());
     let vault = table::borrow_mut(&mut minter.ytc, tname);
@@ -287,7 +336,7 @@ public fun snap<T, S>(
     minter: &mut Minter<S>,
     price: u128,
 ) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     let expected_value= i_convert_yt_to_ut(price, yt_info.active_balance, yt_info.decimals);
     yt_info.expected_value = expected_value;
@@ -296,7 +345,7 @@ public fun snap<T, S>(
 
 /// Users Function
 entry fun init_user_info<T, S>(minter: &Minter<S>, ctx: &mut TxContext) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     assert!(table::contains(&minter.ytc, tname), 0);
     let new_user = UserInfo<T, S> {
         id: object::new(ctx),
@@ -321,13 +370,66 @@ public fun poke<T, S>(
     clock: &Clock,
     price: u128
 ) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     assert!(table::contains(&minter.ytc, tname), 0);
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     let user_yt_info = &mut user_info.deposited_token;
     i_preemptively_harvest(yt_info, price);
     i_distribute_unlock_credit(yt_info, clock);
     i_poke(&mut user_info.debt, &mut user_info.profit, user_yt_info, yt_info);
+}
+
+public fun deposit2<T, S>(
+    _: &AdapterCap, 
+    token: Coin<T>, 
+    price: u128,
+    mut o_user_info: Option<UserInfo<T, S>>, 
+    vault: &mut Vault<T>,
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    ctx: &mut TxContext
+) {
+    let mut user_info: UserInfo<T, S>;
+    if(option::is_none(&o_user_info)) {
+        user_info = i_init_user_info<T, S>(minter, ctx);
+    }
+    else {
+        user_info = option::extract(&mut o_user_info);
+    };
+    option::destroy_none(o_user_info);
+
+    let tname = type_name::with_original_ids<T>();
+    assert!(table::contains(&minter.ytc, tname), 0);
+    let yt_info = table::borrow_mut(&mut minter.ytc, tname);
+    let user_yt_info = &mut user_info.deposited_token;
+    assert!(yt_info.enabled, freezeVault());
+
+    let amount = coin::value(&token) as u128;
+    
+    let shares = i_deposit(
+        &mut user_info.debt, 
+        &mut user_info.profit, 
+        amount, 
+        price, 
+        user_yt_info, 
+        yt_info, 
+        clock
+    );
+
+    let coin_balance = coin::into_balance(token);
+    balance::join(&mut vault.reserve, coin_balance);   
+
+    let mint_allowance = user_info.deposited_token.mint_allowance;
+    let user_addr = ctx.sender();
+
+    one::event::emit(DepositEvent {
+        user: user_addr,
+        amount: amount,
+        shares: shares,
+        mint_allowance: mint_allowance
+    });
+
+    transfer::transfer(user_info, user_addr);
 }
  
 
@@ -340,15 +442,22 @@ public fun deposit<T, S>(
     minter: &mut Minter<S>,
     clock: &Clock,
 ) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     assert!(table::contains(&minter.ytc, tname), 0);
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     let user_yt_info = &mut user_info.deposited_token;
     assert!(yt_info.enabled, freezeVault());
     let amount = coin::value(&token) as u128;
-    let _ = i_deposit(&mut user_info.debt, &mut user_info.profit, amount, price, user_yt_info, yt_info, clock);
+    let shares = i_deposit(&mut user_info.debt, &mut user_info.profit, amount, price, user_yt_info, yt_info, clock);
     let coin_balance = coin::into_balance(token);
     balance::join(&mut vault.reserve, coin_balance);   
+
+    one::event::emit(DepositEvent {
+        user: user_info.owner,
+        amount: amount,
+        shares: shares,
+        mint_allowance: user_info.deposited_token.mint_allowance
+    });
 }
 
 public fun mint<T, S>(
@@ -366,6 +475,7 @@ public fun mint<T, S>(
     i_mint(user_info, minter, clock, amount, price, recipient, conversion_factor, ctx);
 }
 
+#[allow(lint(self_transfer))]
 public fun burn<T, S>(
     _: &AdapterCap,
     user_info: &mut UserInfo<T, S>,
@@ -375,14 +485,14 @@ public fun burn<T, S>(
     ctx: &mut TxContext
 ) {
     let amount = coin::value(&token) as u128;
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     i_distribute_unlock_credit(yt_info, clock);
     i_poke(&mut user_info.debt, &mut user_info.profit, &mut user_info.deposited_token, yt_info);
     let debt = user_info.debt;
     if(debt == 0) {
         transfer::public_transfer(token, ctx.sender());
-        return;
+        return
     };
     let credit = min(amount, debt);
     user_info.debt = user_info.debt - credit;
@@ -395,8 +505,14 @@ public fun burn<T, S>(
     }
     else {
         coin::burn(&mut minter.treasury, token);
-    }
+    };
 
+    one::event::emit(BurnEvent {
+        user: user_info.owner,
+        amount: credit,
+        debt_reduced: credit,
+        mint_allowance: user_info.deposited_token.mint_allowance
+    });
 }
 
 public fun repay<T, S>(
@@ -407,29 +523,35 @@ public fun repay<T, S>(
     clock: &Clock,
     _price: u128,
     conversion_factor: u128,
+    _limiter: &mut Limiter,
+    _limiter_cap: &LimiterAccessCap
 ): u64 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     assert!(amount > 0, 0);
     i_distribute_unlock_credit(yt_info, clock);
     i_poke(&mut user_info.debt, &mut user_info.profit, &mut user_info.deposited_token, yt_info);
     let debt = user_info.debt;
     if(debt == 0) {
-        return 0;
+        return 0
     };
     let maximum_amount = i_normalize_dt_to_ut(debt, conversion_factor);
     let actual_amount = min(amount as u128, maximum_amount);
-    // TODO: check repay limiter -> call sang adapter (hoac check sau khi tra ve)
+    // NOTE: Repay limiter is enforced at adapter level (template_adapter::repay)
+    // Core trusts adapters to call limiter::decrease() after getting actual_amount
 
     let credit = i_normalize_ut_to_dt(actual_amount, conversion_factor);
     user_info.debt = user_info.debt - credit;
 
-    // TODO: decrease repay limit
+    // NOTE: Token routing to redeem_pool is handled by adapter via return value.
+    // Adapter calls redeem_pool::donate() with the actual repay amount.
 
-    // TODO: transfer token cho transmuter
-
-    // TODO: emit event
-
+    one::event::emit(RepayEvent {
+        user: user_info.owner,
+        amount_repaid: actual_amount as u64,
+        remaining_debt: user_info.debt,
+        mint_allowance: user_info.deposited_token.mint_allowance
+    });
     
     actual_amount as u64
 }
@@ -447,7 +569,7 @@ public fun liquidate<T, S>(
     ctx: &mut TxContext
 ): (u128, Coin<T>) {
     assert!(ctx.sender() == user_info.owner, 0);
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     assert!(i_check_loss(price, yt_info.decimals, yt_info.active_balance, yt_info.expected_value, yt_info.maximum_loss));
     let (unrealized_debt, _unrealize_profit) = i_calculate_unrealized_debt_profit(
@@ -475,6 +597,13 @@ public fun liquidate<T, S>(
     i_sync(yt_info, amount_yt, price, false);
     i_validate(yt_info, user_info, minter.minimum_collateralization, conversion_factor, price);
 
+    one::event::emit(LiquidateEvent {
+        user: user_info.owner,
+        shares_liquidated: actual_shares,
+        amount_ut: amount_ut,
+        debt_repaid: credit
+    });
+
     (amount_ut, split_coin(vault, amount_yt as u64, ctx))
 }
 
@@ -489,7 +618,7 @@ public fun harvest<T, S>(
     conversion_factor: u128,
     ctx: &mut TxContext
 ): (u128, u128, address, Coin<T>) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     i_preemptively_harvest(yt_info, price);
     let harvestable_amount = yt_info.harvestable_balance;
@@ -502,6 +631,12 @@ public fun harvest<T, S>(
     let distribute_amount = amount_ut - fee_amount;
     let credit = i_normalize_ut_to_dt(distribute_amount, conversion_factor);
     i_distribute_credit(yt_info, credit, clock);
+
+    one::event::emit(HarvestEvent {
+        amount: amount_ut,
+        fee: fee_amount,
+        credit_distributed: credit
+    });
 
     (distribute_amount, fee_amount, minter.protocol_fee_receiver, split_coin(vault, harvestable_amount as u64, ctx))
 }
@@ -517,7 +652,7 @@ public fun withdraw<T, S>(
     conversion_factor: u128,
     ctx: &mut TxContext
 ): (Coin<T>) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     let amount_yt = i_withdraw(
         yt_info,
@@ -530,6 +665,14 @@ public fun withdraw<T, S>(
     );
     let balance_receive = balance::split(&mut vault.reserve, amount_yt as u64);
     let coin_receive = coin::from_balance(balance_receive, ctx);
+
+    one::event::emit(WithdrawEvent {
+        user: user_info.owner,
+        shares: shares as u128,
+        amount_out: amount_yt,
+        mint_allowance: user_info.deposited_token.mint_allowance
+    });
+
     (coin_receive)
 }
 
@@ -537,16 +680,25 @@ public fun check_loss<T, S>(
     price: u128,
     minter: &Minter<S>
 ) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     i_check_loss(price, yt.decimals, yt.active_balance, yt.expected_value, yt.maximum_loss);
 }
 
 public fun burn_token<S>(
     coin_to_burn: Coin<S>,
-    minter: &mut Minter<S>,
+    minter: &mut Minter<S>
 ) {
+
     coin::burn(&mut minter.treasury, coin_to_burn);
+}
+
+public fun donate_to_reserve<T>(
+    vault: &mut Vault<T>,
+    token: Coin<T>
+) {
+    let balance = coin::into_balance(token);
+    balance::join(&mut vault.reserve, balance);
 }
 
 /// Internal
@@ -561,7 +713,7 @@ fun i_mint<T, S>(
     conversion_factor: u128,
     ctx: &mut TxContext
 ) {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt_info = table::borrow_mut(&mut minter.ytc, tname);
     i_check_minting_limit(amount, &minter.limiter, clock);
     i_preemptively_harvest(yt_info, price);
@@ -570,11 +722,36 @@ fun i_mint<T, S>(
     i_update_debt(&mut user_info.debt, &mut user_info.profit, amount);
     i_validate(yt_info, user_info, minter.minimum_collateralization, conversion_factor, price);
     
+    // Logic update: use mint_allowance to offset new debt
+    let user_deposit_info = &mut user_info.deposited_token;
+    let mint_allowance = user_deposit_info.mint_allowance;
+    let amount_u128 = amount as u128;
+    
+    let mut debt_increase = amount_u128;
+    
+    if (mint_allowance > 0) {
+        let credit_used = min(mint_allowance, amount_u128);
+        user_deposit_info.mint_allowance = mint_allowance - credit_used;
+        debt_increase = amount_u128 - credit_used;
+    };
+
+    
+    if (debt_increase < amount_u128) {
+
+         user_info.debt = user_info.debt - (amount_u128 - debt_increase);
+    };
+
     limiter::decrease(&minter.limiter_cap, &mut minter.limiter, clock, amount as u128);
     let coin = coin::mint(&mut minter.treasury, amount, ctx);
     transfer::public_transfer(coin, recipient);
 
-    // TODO: emit even
+    one::event::emit(MintEvent {
+        user: user_info.owner,
+        amount: amount,
+        recipient: recipient,
+        new_debt: user_info.debt,
+        mint_allowance: user_deposit_info.mint_allowance
+    });
 }
 
 fun i_deposit(
@@ -595,7 +772,6 @@ fun i_deposit(
     let maximum_expected_value = vault.maximum_expected_value;
     assert!(maximum_expected_value >= vault.expected_value, overMaximumExpectedValue());
 
-    // TODO: emit event
 
     shares
 }
@@ -614,9 +790,16 @@ fun i_withdraw<T, S>(
     i_distribute_unlock_credit(yt, clock);
     let amount_yt = i_convert_sh_to_yt(yt, shares, price);
     i_poke(&mut user_info.debt, &mut user_info.profit, &mut user_info.deposited_token, yt);
+    // Reduce mint_allowance proportionally to shares withdrawn
+    let total_shares_before = user_info.deposited_token.shares_balance;
+    if (total_shares_before > 0 && user_info.deposited_token.mint_allowance > 0) {
+        let allowance_reduction = user_info.deposited_token.mint_allowance * shares / total_shares_before;
+        user_info.deposited_token.mint_allowance = user_info.deposited_token.mint_allowance - allowance_reduction;
+    };
     i_burn_shares(&mut user_info.deposited_token, yt, shares);
     i_sync(yt, amount_yt, price, false);
     i_validate(yt, user_info, minimum_collateralization, conversion_factor, price);
+   
     amount_yt
 }
 
@@ -637,21 +820,28 @@ fun i_poke(user_debt: &mut u128, user_profit: &mut u128, user_info: &mut UserDep
     let user_last_accrue = user_info.last_accrue_weight;
 
     if(current_accrue_weighted == user_last_accrue) {
-        return;
+        return
     };
     let user_balance = user_info.shares_balance;
     let unrealized_credit = (current_accrue_weighted - user_last_accrue) * user_balance / FIXED_POINT_SCALAR;
     
     let credit = min(*user_debt, unrealized_credit);
     *user_debt = *user_debt - credit; // need to minus debt first
-    *user_profit = *user_profit + unrealized_credit - credit; // add the remaining credit into profit
+
+    let excess = unrealized_credit - credit;
+    if (excess > 0) {
+        user_info.mint_allowance = user_info.mint_allowance + excess;
+
+        *user_profit = *user_profit + excess;
+    };
+    
     user_info.last_accrue_weight = current_accrue_weighted;
 }
 
 fun i_distribute_unlock_credit(vault: &mut YieldTokenConfig, clock: &Clock) {
     let unlock_credit = i_calculate_unlocked_credit(vault, clock);
     if(unlock_credit == 0) {
-        return;
+        return
     };
     vault.accrued_weight = vault.accrued_weight + unlock_credit * FIXED_POINT_SCALAR / vault.total_shares;
     vault.distributed_credit = vault.distributed_credit + unlock_credit;
@@ -660,14 +850,14 @@ fun i_distribute_unlock_credit(vault: &mut YieldTokenConfig, clock: &Clock) {
 fun i_calculate_unlocked_credit(vault: &YieldTokenConfig, clock: &Clock): u128 {
     let pending_credit = vault.pending_credit;
     if(pending_credit == 0) {
-        return 0;
+        return 0
     };
     let unlock_rate = vault.credit_unlock_rate;
     let distributed_credit = vault.distributed_credit;
     let last_distributed_time = vault.last_distribution;
     let percent_unlock = ((clock::timestamp_ms(clock) - last_distributed_time) as u128) * unlock_rate;
     if(percent_unlock < FIXED_POINT_SCALAR) {
-        return pending_credit * percent_unlock / FIXED_POINT_SCALAR - distributed_credit;
+        return pending_credit * percent_unlock / FIXED_POINT_SCALAR - distributed_credit
     };
     pending_credit - distributed_credit
 }
@@ -699,16 +889,16 @@ fun i_total_value(
 fun i_preemptively_harvest(vault: &mut YieldTokenConfig, price: u128) {
     let active_balance = vault.active_balance;
     if(active_balance == 0) {
-        return;
+        return
     };
     let current_value = i_convert_yt_to_ut(price, active_balance, vault.decimals);
     let expected_value = vault.expected_value;
     if(current_value <= expected_value) {
-        return;
+        return
     };
     let harvestable = i_convert_ut_to_yt(price, current_value - expected_value, vault.decimals);
     if(harvestable == 0) {
-        return;
+        return
     };
     vault.active_balance = vault.active_balance - harvestable;
     vault.harvestable_balance = vault.harvestable_balance + harvestable;
@@ -717,7 +907,7 @@ fun i_preemptively_harvest(vault: &mut YieldTokenConfig, price: u128) {
 fun i_check_loss(price: u128, decimals: u8, current: u128, expected: u128, maxloss: u128): bool {
     let loss = i_cal_loss(price, decimals, current, expected);
     if(loss > maxloss) {
-        return false;
+        return false
     };
     true
 }
@@ -732,14 +922,14 @@ fun i_update_debt(debt: &mut u128, profit: &mut u128, amount: u64) {
 fun i_check_minting_limit(amount: u64, limiter: &Limiter, clock: &Clock) {
     let limit = limiter::get(limiter, clock);
     if(amount as u128 > limit) {
-        abort mintingLimitExceed();
+        abort mintingLimitExceed()
     }
 }
 
 fun i_cal_loss(price: u128, decimals: u8, current_active: u128, expected_value: u128): u128 {
     let current_value = i_convert_yt_to_ut(price, current_active, decimals);
     if(expected_value > current_value) {
-        return (expected_value - current_value) * BPS / expected_value;
+        return (expected_value - current_value) * BPS / expected_value
     };
     0
 }
@@ -753,7 +943,7 @@ fun i_issue_shares_for_amount(user_info: &mut UserDepositInfo, vault: &mut Yield
 
 fun i_convert_yt_to_sh(vault: &YieldTokenConfig, amount : u128, price: u128): u128 {
     if(vault.total_shares == 0) {
-        return amount;
+        return amount
     };
 
     amount * vault.total_shares / i_calculate_unrealized_active_balance(vault, price)
@@ -761,7 +951,7 @@ fun i_convert_yt_to_sh(vault: &YieldTokenConfig, amount : u128, price: u128): u1
 
 fun i_convert_sh_to_yt(vault: &YieldTokenConfig, shares : u128, price: u128): u128 {
     if(vault.total_shares == 0) {
-        return shares;
+        return shares
     };
 
     shares * i_calculate_unrealized_active_balance(vault, price) / vault.total_shares
@@ -796,12 +986,12 @@ fun i_normalize_ut_to_dt(amount: u128, conversion_factor: u128): u128 {
 fun i_calculate_unrealized_active_balance(vault: &YieldTokenConfig, price: u128): u128 {
     let active_balance = vault.active_balance;
     if(active_balance == 0) {
-        return 0;
+        return 0
     };
     let current_value = i_convert_yt_to_ut(price, active_balance, vault.decimals);
     let expected_value = vault.expected_value;
     if(current_value <= expected_value) {
-        return active_balance;
+        return active_balance
     };
     let harvestable = i_convert_ut_to_yt(price, current_value - expected_value, vault.decimals);
     active_balance - harvestable
@@ -821,7 +1011,7 @@ fun i_calculate_unrealized_debt_profit<T, S>(
         current_weight = current_weight + unlock_credit * FIXED_POINT_SCALAR / yt.total_shares;
     };
     if(current_weight == user_last_accrue_weight) {
-        return (debt, profit);
+        return (debt, profit)
     };
     let user_share_balance = user_info.deposited_token.shares_balance;
     let unrealized_credit = (current_weight - user_last_accrue_weight) * user_share_balance / FIXED_POINT_SCALAR;
@@ -862,6 +1052,25 @@ fun split_coin<T>(vault: &mut Vault<T>, amount: u64, ctx: &mut TxContext): Coin<
     let balance_receive = balance::split(&mut vault.reserve, amount as u64);
     let coin_receive = coin::from_balance(balance_receive, ctx);
     (coin_receive)
+}
+
+fun i_init_user_info<T, S>(minter: &Minter<S>, ctx: &mut TxContext): UserInfo<T, S> {
+    let tname = type_name::with_original_ids<T>();
+    assert!(table::contains(&minter.ytc, tname), 0);
+    let new_user = UserInfo<T, S> {
+        id: object::new(ctx),
+        debt: 0,
+        profit: 0,
+        owner: ctx.sender(),
+        deposited_token: UserDepositInfo {
+            last_accrue_weight: 0,
+            shares_balance: 0,
+            mint_allowance: 0,
+            withdraw_allowance: table::new<address, u128>(ctx)
+        },
+     
+    };
+    new_user
 }
 
 // TEST ONLY FUNCTION
@@ -919,35 +1128,35 @@ public fun get_user_info_mint_allowance<T, S>(user: &UserInfo<T, S>): u128 {
 
 #[test_only]
 public fun yt_config_active_balance<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.active_balance
 }
 
 #[test_only]
 public fun yt_config_harvestable_balance<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.harvestable_balance
 }
 
 #[test_only]
 public fun yt_config_total_shares<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.total_shares
 }
 
 #[test_only]
 public fun yt_config_expected_value<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.expected_value
 }
 
 #[test_only]
 public fun yt_config_pending_credit<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.pending_credit
 }
@@ -955,22 +1164,42 @@ public fun yt_config_pending_credit<T, S>(minter: &Minter<S>): u128 {
 
 #[test_only]
 public fun yt_config_distributed_credit<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.distributed_credit
 }
 
 #[test_only]
 public fun yt_config_last_distribution<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.last_distribution as u128
 }
 
 #[test_only]
 public fun yt_config_accrued_weight<T, S>(minter: &Minter<S>): u128 {
-    let tname = type_name::get<T>();
+    let tname = type_name::with_original_ids<T>();
     let yt = table::borrow(&minter.ytc, tname);
     yt.accrued_weight
 }
 
+/// Allow InsurancePool to deposit balance directly into a vault's reserve
+public fun deposit_to_vault<T>(vault: &mut Vault<T>, balance_in: Balance<T>) {
+    balance::join(&mut vault.reserve, balance_in);
+}
+
+/// Get the loss amount for a vault (how much expected_value exceeds current_value)
+/// Used by adapters/keepers to determine how much to draw from InsurancePool
+public fun get_loss_amount<T, S>(
+    minter: &Minter<S>,
+    price: u128,
+): u128 {
+    let tname = type_name::with_original_ids<T>();
+    let yt_info = table::borrow(&minter.ytc, tname);
+    let current_value = i_convert_yt_to_ut(price, yt_info.active_balance, yt_info.decimals);
+    if (yt_info.expected_value > current_value) {
+        yt_info.expected_value - current_value
+    } else {
+        0
+    }
+}

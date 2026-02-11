@@ -1,0 +1,1152 @@
+[note] Dependencies on Bridge, MoveStdlib, One, and OneSystem are automatically added, but this feature is disabled for your package because you have explicitly included dependencies on MoveStdlib and One. Consider removing these dependencies from Move.toml.
+UPDATING GIT DEPENDENCY https://github.com/one-chain-labs/onechain.git
+INCLUDING DEPENDENCY One
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING bomb_panic
+[0m[1m[38;5;11mwarning[Lint W99001][0m[1m: non-composable transfer to sender[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:493:9
+    [0m[34m│[0m
+[0m[34m478[0m [0m[34m│[0m public fun burn<T, S>(
+    [0m[34m│[0m            [0m[34m----[0m [0m[34mReturning an object from a function, allows a caller to use the object and enables composability via programmable transactions.[0m
+    [0m[34m·[0m
+[0m[34m493[0m [0m[34m│[0m         [0m[33mtransfer::public_transfer(token, ctx.sender())[0m;
+    [0m[34m│[0m         [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34m│[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34mTransaction sender address coming from here[0m
+    [0m[34m│[0m         [0m[33mTransfer of an object to transaction sender address[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[Lint W99001][0m[1m: non-composable transfer to sender[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:503:9
+    [0m[34m│[0m
+[0m[34m478[0m [0m[34m│[0m public fun burn<T, S>(
+    [0m[34m│[0m            [0m[34m----[0m [0m[34mReturning an object from a function, allows a caller to use the object and enables composability via programmable transactions.[0m
+    [0m[34m·[0m
+[0m[34m503[0m [0m[34m│[0m         [0m[33mtransfer::public_transfer(token, ctx.sender())[0m;
+    [0m[34m│[0m         [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34m│[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34mTransaction sender address coming from here[0m
+    [0m[34m│[0m         [0m[33mTransfer of an object to transaction sender address[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:796:15
+    [0m[34m│[0m
+[0m[34m796[0m [0m[34m│[0m         return[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:817:15
+    [0m[34m│[0m
+[0m[34m817[0m [0m[34m│[0m         return[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:826:17
+    [0m[34m│[0m
+[0m[34m826[0m [0m[34m│[0m         return 0[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m--------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m       [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m       [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m       [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:833:89
+    [0m[34m│[0m
+[0m[34m833[0m [0m[34m│[0m         return pending_credit * percent_unlock / FIXED_POINT_SCALAR - distributed_credit[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m--------------------------------------------------------------------------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m                                                                               [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m                                                                               [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m                                                                               [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:865:15
+    [0m[34m│[0m
+[0m[34m865[0m [0m[34m│[0m         return[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:870:15
+    [0m[34m│[0m
+[0m[34m870[0m [0m[34m│[0m         return[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:874:15
+    [0m[34m│[0m
+[0m[34m874[0m [0m[34m│[0m         return[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m     [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:883:21
+    [0m[34m│[0m
+[0m[34m883[0m [0m[34m│[0m         return false[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m           [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m           [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m           [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:898:35
+    [0m[34m│[0m
+[0m[34m898[0m [0m[34m│[0m         abort mintingLimitExceed()[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m--------------------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m                         [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m                         [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m                         [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:905:71
+    [0m[34m│[0m
+[0m[34m905[0m [0m[34m│[0m         return (expected_value - current_value) * BPS / expected_value[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m--------------------------------------------------------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m                                                             [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m                                                             [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m                                                             [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:919:22
+    [0m[34m│[0m
+[0m[34m919[0m [0m[34m│[0m         return amount[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m-------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m            [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m            [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m            [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:927:22
+    [0m[34m│[0m
+[0m[34m927[0m [0m[34m│[0m         return shares[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m-------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m            [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m            [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m            [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:962:17
+    [0m[34m│[0m
+[0m[34m962[0m [0m[34m│[0m         return 0[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m--------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m       [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m       [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m       [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:967:30
+    [0m[34m│[0m
+[0m[34m967[0m [0m[34m│[0m         return active_balance[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m---------------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m                    [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m                    [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m                    [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/saver.move:987:30
+    [0m[34m│[0m
+[0m[34m987[0m [0m[34m│[0m         return (debt, profit)[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m---------------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m                    [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m                    [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m                    [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/bomb_panic.move:8:17
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use one::coin::{[0m[33mSelf[0m, Coin};
+  [0m[34m│[0m                 [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'coin'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/bomb_panic.move:11:10
+   [0m[34m│[0m
+[0m[34m11[0m [0m[34m│[0m use one::[0m[33mtransfer[0m;
+   [0m[34m│[0m          [0m[33m^^^^^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/insurance_pool.move:5:21
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+  [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/insurance_pool.move:6:19
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::object::{[0m[33mSelf[0m, UID};
+  [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'object' for module 'one::object'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/insurance_pool.move:6:25
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::object::{Self, [0m[33mUID[0m};
+  [0m[34m│[0m                         [0m[33m^^^[0m [0m[33mUnnecessary alias 'UID' for module member 'one::object::UID'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/insurance_pool.move:7:23
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/insurance_pool.move:7:23
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/insurance_pool.move:7:29
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/insurance_pool.move:8:20
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use saver::saver::{[0m[33mSelf[0m, Vault};
+  [0m[34m│[0m                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'saver'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09002][0m[1m: unused variable[0m
+   [0m[34m┌─[0m ./sources/saver/insurance_pool.move:35:5
+   [0m[34m│[0m
+[0m[34m35[0m [0m[34m│[0m     [0m[33mvault[0m: &mut Vault<T>, 
+   [0m[34m│[0m     [0m[33m^^^^^[0m [0m[33mUnused parameter 'vault'. Consider removing or prefixing with an underscore: '_vault'[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_variable)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::coin::{Self, [0m[33mTreasuryCap[0m, Coin};
+  [0m[34m│[0m                       [0m[33m^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'TreasuryCap'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:4:36
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::coin::{Self, TreasuryCap, [0m[33mCoin[0m};
+  [0m[34m│[0m                                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'Coin'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:5:23
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:5:23
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:5:29
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:6:21
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+  [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:7:16
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::oct::{[0m[33mOCT[0m};
+  [0m[34m│[0m                [0m[33m^^^[0m [0m[33mUnused 'use' of alias 'OCT'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:8:20
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use one::balance::{[0m[33mSelf[0m, Balance};
+  [0m[34m│[0m                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'balance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:8:26
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use one::balance::{Self, [0m[33mBalance[0m};
+  [0m[34m│[0m                          [0m[33m^^^^^^^[0m [0m[33mUnused 'use' of alias 'Balance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W04037][0m[1m: deprecated usage[0m
+   [0m[34m┌─[0m ./sources/saver/shares_coin/sroct.move:16:42
+   [0m[34m│[0m
+[0m[34m16[0m [0m[34m│[0m     let (treasury_cap, metadata) = coin::[0m[33mcreate_currency[0m(
+   [0m[34m│[0m                                          [0m[33m^^^^^^^^^^^^^^^[0m [0m[33mThe function 'one::coin::create_currency' is deprecated: Use `coin_registry::new_currency_with_otw` instead[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/redeem_pool.move:5:10
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::[0m[33mtransfer[0m;
+  [0m[34m│[0m          [0m[33m^^^^^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/redeem_pool.move:6:19
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::object::{[0m[33mSelf[0m, UID};
+  [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'object' for module 'one::object'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/redeem_pool.move:6:25
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::object::{Self, [0m[33mUID[0m};
+  [0m[34m│[0m                         [0m[33m^^^[0m [0m[33mUnnecessary alias 'UID' for module member 'one::object::UID'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/redeem_pool.move:7:23
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/redeem_pool.move:7:23
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/redeem_pool.move:7:29
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/game_hub.move:3:19
+  [0m[34m│[0m
+[0m[34m3[0m [0m[34m│[0m use one::object::{[0m[33mSelf[0m, UID};
+  [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'object' for module 'one::object'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/game_hub.move:3:25
+  [0m[34m│[0m
+[0m[34m3[0m [0m[34m│[0m use one::object::{Self, [0m[33mUID[0m};
+  [0m[34m│[0m                         [0m[33m^^^[0m [0m[33mUnnecessary alias 'UID' for module member 'one::object::UID'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/game_hub.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/game_hub.move:4:29
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/game_hub.move:6:21
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+  [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[Lint W99001][0m[1m: non-composable transfer to sender[0m
+    [0m[34m┌─[0m ./sources/game_hub.move:165:13
+    [0m[34m│[0m
+[0m[34m149[0m [0m[34m│[0m ): object::ID {
+    [0m[34m│[0m    [0m[34m----------[0m [0m[34mReturning an object from a function, allows a caller to use the object and enables composability via programmable transactions.[0m
+    [0m[34m·[0m
+[0m[34m165[0m [0m[34m│[0m             [0m[33mtransfer::public_transfer(refund, tx_context::sender(ctx))[0m;
+    [0m[34m│[0m             [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [0m[34m│[0m             [0m[33m│[0m                                 [0m[34m│[0m
+    [0m[34m│[0m             [0m[33m│[0m                                 [0m[34mTransaction sender address coming from here[0m
+    [0m[34m│[0m             [0m[33mTransfer of an object to transaction sender address[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/game_hub.move:210:14
+    [0m[34m│[0m
+[0m[34m210[0m [0m[34m│[0m         break[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m-----[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m    [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m    [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m    [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[Lint W99001][0m[1m: non-composable transfer to sender[0m
+    [0m[34m┌─[0m ./sources/game_hub.move:255:9
+    [0m[34m│[0m
+[0m[34m235[0m [0m[34m│[0m public fun ready_to_play_internal<T>(
+    [0m[34m│[0m            [0m[34m----------------------[0m [0m[34mReturning an object from a function, allows a caller to use the object and enables composability via programmable transactions.[0m
+    [0m[34m·[0m
+[0m[34m240[0m [0m[34m│[0m     let user = ctx.sender();
+    [0m[34m│[0m                [0m[34m------------[0m [0m[34mTransaction sender address coming from here[0m
+    [0m[34m·[0m
+[0m[34m255[0m [0m[34m│[0m         [0m[33mtransfer::public_transfer(coin, user)[0m;
+    [0m[34m│[0m         [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[33mTransfer of an object to transaction sender address[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/adapter/template.move:7:20
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use saver::error::{[0m[33mSelf[0m, unAuthorize, notEnoughBalance, alreadyInitialize, freezeVault};
+  [0m[34m│[0m                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'error'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/adapter/template.move:7:39
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use saver::error::{Self, unAuthorize, [0m[33mnotEnoughBalance[0m, alreadyInitialize, freezeVault};
+  [0m[34m│[0m                                       [0m[33m^^^^^^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'notEnoughBalance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/adapter/template.move:7:57
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use saver::error::{Self, unAuthorize, notEnoughBalance, [0m[33malreadyInitialize[0m, freezeVault};
+  [0m[34m│[0m                                                         [0m[33m^^^^^^^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'alreadyInitialize'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/adapter/template.move:8:19
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use std::option::{[0m[33mSelf[0m, Option};
+  [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'option' for module 'std::option'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/adapter/template.move:8:19
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use std::option::{[0m[33mSelf[0m, Option};
+  [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'option'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/adapter/template.move:8:25
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use std::option::{Self, [0m[33mOption[0m};
+  [0m[34m│[0m                         [0m[33m^^^^^^[0m [0m[33mUnnecessary alias 'Option' for module member 'std::option::Option'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/adapter/template.move:9:25
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use one::clock::{Clock, [0m[33mSelf[0m};
+  [0m[34m│[0m                         [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'clock'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:10:19
+   [0m[34m│[0m
+[0m[34m10[0m [0m[34m│[0m use one::object::{[0m[33mSelf[0m, UID};
+   [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'object' for module 'one::object'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:10:25
+   [0m[34m│[0m
+[0m[34m10[0m [0m[34m│[0m use one::object::{Self, [0m[33mUID[0m};
+   [0m[34m│[0m                         [0m[33m^^^[0m [0m[33mUnnecessary alias 'UID' for module member 'one::object::UID'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:11:21
+   [0m[34m│[0m
+[0m[34m11[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+   [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:12:23
+   [0m[34m│[0m
+[0m[34m12[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+   [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:12:23
+   [0m[34m│[0m
+[0m[34m12[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+   [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:12:29
+   [0m[34m│[0m
+[0m[34m12[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+   [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:13:29
+   [0m[34m│[0m
+[0m[34m13[0m [0m[34m│[0m use one::coin::{Self, Coin, [0m[33mTreasuryCap[0m, CoinMetadata};
+   [0m[34m│[0m                             [0m[33m^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'TreasuryCap'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/adapter/template.move:13:42
+   [0m[34m│[0m
+[0m[34m13[0m [0m[34m│[0m use one::coin::{Self, Coin, TreasuryCap, [0m[33mCoinMetadata[0m};
+   [0m[34m│[0m                                          [0m[33m^^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'CoinMetadata'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09002][0m[1m: unused variable[0m
+    [0m[34m┌─[0m ./sources/saver/adapter/template.move:172:5
+    [0m[34m│[0m
+[0m[34m172[0m [0m[34m│[0m     [0m[33mctx[0m: &mut TxContext
+    [0m[34m│[0m     [0m[33m^^^[0m [0m[33mUnused parameter 'ctx'. Consider removing or prefixing with an underscore: '_ctx'[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_variable)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[Lint W99001][0m[1m: non-composable transfer to sender[0m
+    [0m[34m┌─[0m ./sources/saver/adapter/template.move:348:9
+    [0m[34m│[0m
+[0m[34m316[0m [0m[34m│[0m public fun repay<U, T, S>(     
+    [0m[34m│[0m            [0m[34m-----[0m [0m[34mReturning an object from a function, allows a caller to use the object and enables composability via programmable transactions.[0m
+    [0m[34m·[0m
+[0m[34m348[0m [0m[34m│[0m         [0m[33mtransfer::public_transfer(token, ctx.sender())[0m;
+    [0m[34m│[0m         [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34m│[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34mTransaction sender address coming from here[0m
+    [0m[34m│[0m         [0m[33mTransfer of an object to transaction sender address[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09010][0m[1m: unused function type parameter[0m
+    [0m[34m┌─[0m ./sources/saver/adapter/template.move:463:15
+    [0m[34m│[0m
+[0m[34m463[0m [0m[34m│[0m fun get_price<[0m[33mU[0m, T>(): u128 {
+    [0m[34m│[0m               [0m[33m^[0m [0m[33mUnused type parameter 'U'.[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_type_parameter)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09010][0m[1m: unused function type parameter[0m
+    [0m[34m┌─[0m ./sources/saver/adapter/template.move:463:18
+    [0m[34m│[0m
+[0m[34m463[0m [0m[34m│[0m fun get_price<U, [0m[33mT[0m>(): u128 {
+    [0m[34m│[0m                  [0m[33m^[0m [0m[33mUnused type parameter 'T'.[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_type_parameter)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09002][0m[1m: unused variable[0m
+    [0m[34m┌─[0m ./sources/saver/adapter/template.move:469:16
+    [0m[34m│[0m
+[0m[34m469[0m [0m[34m│[0m fun wrap<U, T>([0m[33mtoken[0m: Coin<U>): Coin<T>{
+    [0m[34m│[0m                [0m[33m^^^^^[0m [0m[33mUnused parameter 'token'. Consider removing or prefixing with an underscore: '_token'[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_variable)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09002][0m[1m: unused variable[0m
+    [0m[34m┌─[0m ./sources/saver/adapter/template.move:474:18
+    [0m[34m│[0m
+[0m[34m474[0m [0m[34m│[0m fun unwrap<U, T>([0m[33mtoken[0m: Coin<T>): Coin<U> {
+    [0m[34m│[0m                  [0m[33m^^^^^[0m [0m[33mUnused parameter 'token'. Consider removing or prefixing with an underscore: '_token'[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_variable)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::coin::{Self, [0m[33mTreasuryCap[0m, Coin};
+  [0m[34m│[0m                       [0m[33m^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'TreasuryCap'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:4:36
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::coin::{Self, TreasuryCap, [0m[33mCoin[0m};
+  [0m[34m│[0m                                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'Coin'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:5:23
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:5:23
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:5:29
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:6:21
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+  [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:7:16
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::oct::{[0m[33mOCT[0m};
+  [0m[34m│[0m                [0m[33m^^^[0m [0m[33mUnused 'use' of alias 'OCT'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:8:20
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use one::balance::{[0m[33mSelf[0m, Balance};
+  [0m[34m│[0m                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'balance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:8:26
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use one::balance::{Self, [0m[33mBalance[0m};
+  [0m[34m│[0m                          [0m[33m^^^^^^^[0m [0m[33mUnused 'use' of alias 'Balance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W04037][0m[1m: deprecated usage[0m
+   [0m[34m┌─[0m ./sources/saver/shares_coin/ayoct.move:16:42
+   [0m[34m│[0m
+[0m[34m16[0m [0m[34m│[0m     let (treasury_cap, metadata) = coin::[0m[33mcreate_currency[0m(
+   [0m[34m│[0m                                          [0m[33m^^^^^^^^^^^^^^^[0m [0m[33mThe function 'one::coin::create_currency' is deprecated: Use `coin_registry::new_currency_with_otw` instead[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:8:10
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use std::[0m[33mtype_name[0m;
+  [0m[34m│[0m          [0m[33m^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'type_name'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:9:20
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use saver::error::{[0m[33mSelf[0m, unAuthorize, notEnoughBalance, alreadyInitialize, freezeVault};
+  [0m[34m│[0m                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'error'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:9:39
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use saver::error::{Self, unAuthorize, [0m[33mnotEnoughBalance[0m, alreadyInitialize, freezeVault};
+  [0m[34m│[0m                                       [0m[33m^^^^^^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'notEnoughBalance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:9:57
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use saver::error::{Self, unAuthorize, notEnoughBalance, [0m[33malreadyInitialize[0m, freezeVault};
+  [0m[34m│[0m                                                         [0m[33m^^^^^^^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'alreadyInitialize'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:10:19
+   [0m[34m│[0m
+[0m[34m10[0m [0m[34m│[0m use std::option::{[0m[33mSelf[0m, Option};
+   [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'option' for module 'std::option'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:10:19
+   [0m[34m│[0m
+[0m[34m10[0m [0m[34m│[0m use std::option::{[0m[33mSelf[0m, Option};
+   [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'option'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:10:25
+   [0m[34m│[0m
+[0m[34m10[0m [0m[34m│[0m use std::option::{Self, [0m[33mOption[0m};
+   [0m[34m│[0m                         [0m[33m^^^^^^[0m [0m[33mUnnecessary alias 'Option' for module member 'std::option::Option'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:11:25
+   [0m[34m│[0m
+[0m[34m11[0m [0m[34m│[0m use one::clock::{Clock, [0m[33mSelf[0m};
+   [0m[34m│[0m                         [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'clock'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:12:19
+   [0m[34m│[0m
+[0m[34m12[0m [0m[34m│[0m use one::object::{[0m[33mSelf[0m, UID};
+   [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'object' for module 'one::object'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:12:25
+   [0m[34m│[0m
+[0m[34m12[0m [0m[34m│[0m use one::object::{Self, [0m[33mUID[0m};
+   [0m[34m│[0m                         [0m[33m^^^[0m [0m[33mUnnecessary alias 'UID' for module member 'one::object::UID'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:13:21
+   [0m[34m│[0m
+[0m[34m13[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+   [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:14:23
+   [0m[34m│[0m
+[0m[34m14[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+   [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:14:23
+   [0m[34m│[0m
+[0m[34m14[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+   [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:14:29
+   [0m[34m│[0m
+[0m[34m14[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+   [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:15:29
+   [0m[34m│[0m
+[0m[34m15[0m [0m[34m│[0m use one::coin::{Self, Coin, [0m[33mTreasuryCap[0m, CoinMetadata};
+   [0m[34m│[0m                             [0m[33m^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'TreasuryCap'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:15:42
+   [0m[34m│[0m
+[0m[34m15[0m [0m[34m│[0m use one::coin::{Self, Coin, TreasuryCap, [0m[33mCoinMetadata[0m};
+   [0m[34m│[0m                                          [0m[33m^^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'CoinMetadata'. Consider removing it[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[Lint W99001][0m[1m: non-composable transfer to sender[0m
+    [0m[34m┌─[0m ./sources/saver/mock/mock_adapter.move:361:9
+    [0m[34m│[0m
+[0m[34m329[0m [0m[34m│[0m public fun repay<U, T, S>(     
+    [0m[34m│[0m            [0m[34m-----[0m [0m[34mReturning an object from a function, allows a caller to use the object and enables composability via programmable transactions.[0m
+    [0m[34m·[0m
+[0m[34m361[0m [0m[34m│[0m         [0m[33mtransfer::public_transfer(token, ctx.sender())[0m;
+    [0m[34m│[0m         [0m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34m│[0m
+    [0m[34m│[0m         [0m[33m│[0m                                [0m[34mTransaction sender address coming from here[0m
+    [0m[34m│[0m         [0m[33mTransfer of an object to transaction sender address[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:3:23
+  [0m[34m│[0m
+[0m[34m3[0m [0m[34m│[0m use one::coin::{Self, [0m[33mTreasuryCap[0m, Coin};
+  [0m[34m│[0m                       [0m[33m^^^^^^^^^^^[0m [0m[33mUnused 'use' of alias 'TreasuryCap'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:3:36
+  [0m[34m│[0m
+[0m[34m3[0m [0m[34m│[0m use one::coin::{Self, TreasuryCap, [0m[33mCoin[0m};
+  [0m[34m│[0m                                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'Coin'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:4:29
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:5:21
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+  [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:6:16
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::oct::{[0m[33mOCT[0m};
+  [0m[34m│[0m                [0m[33m^^^[0m [0m[33mUnused 'use' of alias 'OCT'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:7:20
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::balance::{[0m[33mSelf[0m, Balance};
+  [0m[34m│[0m                    [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'balance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:7:26
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::balance::{Self, [0m[33mBalance[0m};
+  [0m[34m│[0m                          [0m[33m^^^^^^^[0m [0m[33mUnused 'use' of alias 'Balance'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W04037][0m[1m: deprecated usage[0m
+   [0m[34m┌─[0m ./sources/saver/mock/mock_coin.move:13:42
+   [0m[34m│[0m
+[0m[34m13[0m [0m[34m│[0m     let (treasury_cap, metadata) = coin::[0m[33mcreate_currency[0m(
+   [0m[34m│[0m                                          [0m[33m^^^^^^^^^^^^^^^[0m [0m[33mThe function 'one::coin::create_currency' is deprecated: Use `coin_registry::new_currency_with_otw` instead[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:4:29
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:5:21
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+  [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:6:16
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::oct::{[0m[33mOCT[0m};
+  [0m[34m│[0m                [0m[33m^^^[0m [0m[33mUnused 'use' of alias 'OCT'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:8:19
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use one::object::{[0m[33mSelf[0m, UID};
+  [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'object' for module 'one::object'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:8:25
+  [0m[34m│[0m
+[0m[34m8[0m [0m[34m│[0m use one::object::{Self, [0m[33mUID[0m};
+  [0m[34m│[0m                         [0m[33m^^^[0m [0m[33mUnnecessary alias 'UID' for module member 'one::object::UID'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:9:18
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use std::debug::{[0m[33mSelf[0m, print};
+  [0m[34m│[0m                  [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'debug'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/mock/mock_shares_vault.move:9:24
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use std::debug::{Self, [0m[33mprint[0m};
+  [0m[34m│[0m                        [0m[33m^^^^^[0m [0m[33mUnused 'use' of alias 'print'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/limiter.move:6:23
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/limiter.move:6:23
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/limiter.move:6:29
+  [0m[34m│[0m
+[0m[34m6[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/limiter.move:7:21
+  [0m[34m│[0m
+[0m[34m7[0m [0m[34m│[0m use one::transfer::{[0m[33mSelf[0m};
+  [0m[34m│[0m                     [0m[33m^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/limiter.move:9:19
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use one::object::{[0m[33mSelf[0m, UID};
+  [0m[34m│[0m                   [0m[33m^^^^[0m [0m[33mUnnecessary alias 'object' for module 'one::object'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/limiter.move:9:25
+  [0m[34m│[0m
+[0m[34m9[0m [0m[34m│[0m use one::object::{Self, [0m[33mUID[0m};
+  [0m[34m│[0m                         [0m[33m^^^[0m [0m[33mUnnecessary alias 'UID' for module member 'one::object::UID'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09004][0m[1m: unnecessary trailing semicolon[0m
+    [0m[34m┌─[0m ./sources/saver/limiter.move:116:34
+    [0m[34m│[0m
+[0m[34m116[0m [0m[34m│[0m         return limiter.last_value[0m[33m;[0m
+    [0m[34m│[0m         [0m[34m-------------------------[0m[33m^[0m
+    [0m[34m│[0m         [0m[34m│[0m                        [0m[33m│[0m
+    [0m[34m│[0m         [0m[34m│[0m                        [0m[33mInvalid trailing ';'[0m
+    [0m[34m│[0m         [0m[34m│[0m                        [0m[34mA trailing ';' in an expression block implicitly adds a '()' value after the semicolon. That '()' value will not be reachable[0m
+    [0m[34m│[0m         [0m[34mAny code after this expression will not be reached[0m
+    [0m[34m│[0m
+    [0m[34m=[0m This warning can be suppressed with '#[allow(unused_trailing_semi)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/template.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnnecessary alias 'tx_context' for module 'one::tx_context'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W09001][0m[1m: unused alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/template.move:4:23
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{[0m[33mSelf[0m, TxContext};
+  [0m[34m│[0m                       [0m[33m^^^^[0m [0m[33mUnused 'use' of alias 'tx_context'. Consider removing it[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/template.move:4:29
+  [0m[34m│[0m
+[0m[34m4[0m [0m[34m│[0m use one::tx_context::{Self, [0m[33mTxContext[0m};
+  [0m[34m│[0m                             [0m[33m^^^^^^^^^[0m [0m[33mUnnecessary alias 'TxContext' for module member 'one::tx_context::TxContext'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W02021][0m[1m: duplicate alias[0m
+  [0m[34m┌─[0m ./sources/saver/shares_coin/template.move:5:10
+  [0m[34m│[0m
+[0m[34m5[0m [0m[34m│[0m use one::[0m[33mtransfer[0m;
+  [0m[34m│[0m          [0m[33m^^^^^^^^[0m [0m[33mUnnecessary alias 'transfer' for module 'one::transfer'. This alias is provided by default[0m
+  [0m[34m│[0m
+  [0m[34m=[0m This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+[0m[1m[38;5;11mwarning[W04037][0m[1m: deprecated usage[0m
+   [0m[34m┌─[0m ./sources/saver/shares_coin/template.move:12:42
+   [0m[34m│[0m
+[0m[34m12[0m [0m[34m│[0m     let (treasury_cap, metadata) = coin::[0m[33mcreate_currency[0m(
+   [0m[34m│[0m                                          [0m[33m^^^^^^^^^^^^^^^[0m [0m[33mThe function 'one::coin::create_currency' is deprecated: Use `coin_registry::new_currency_with_otw` instead[0m
+   [0m[34m│[0m
+   [0m[34m=[0m This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+Please report feedback on the linter warnings at https://forums.sui.io
+
+Total number of linter warnings suppressed: 17 (unique lints: 2)

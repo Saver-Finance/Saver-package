@@ -1,12 +1,7 @@
 module saver::mock;
 
 use one::coin::{Self, TreasuryCap, Coin};
-use one::tx_context::{Self, TxContext};
-use one::transfer::{Self};
-use one::oct::{OCT};
 use one::balance::{Self, Balance};
-use one::object::{Self, UID};
-use std::debug::{Self, print};
 
 
 public struct Vault<phantom U, phantom T> has key {

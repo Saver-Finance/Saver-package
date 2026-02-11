@@ -5,6 +5,9 @@ use one::clock::{Self, Clock};
 use one::event;
 use one::random::{Self, Random};
 use std::string::{Self, String};
+use one::coin::Coin;
+use gamehub::gamehub::{GameRegistry, Config};
+use gamehub::lobby::{Lobby};
 
 /// Basis points denominator.
 const BPS_DENOM: u64 = 10_000;
@@ -186,6 +189,41 @@ public fun create_game_state<T>(
             reward_divisor: DEFAULT_REWARD_DIVISOR,
         },
     }
+}
+// bomb_panic.move
+public entry fun create_room_and_game<T>(
+    registry: &GameRegistry,
+    config: &Config,
+    lobby: &mut Lobby,
+    entry_fee: u64,
+    max_players: u8,
+    creation_fee: Coin<T>,
+    ctx: &mut TxContext
+) {
+    // 1. Create room (returns the ID, room is already shared)
+    let room_id = gamehub::gamehub::create_room_internal<T, GameState<T>>(
+        registry, config, entry_fee, max_players, creation_fee, ctx
+    );
+    
+    // 2. Create game state using the room ID
+    let hub_ref = GameHubRef { id: object::id_from_address(@0x0) };
+    let game = create_game_state<T>(hub_ref, string::utf8(b"Bomb Panic"), room_id, ctx);
+    let game_id = object::id(&game);
+    
+    // 3. Register in lobby
+    gamehub::lobby::register_room(lobby, room_id, game_id);
+    
+    // 4. Share game state (room is already shared)
+    transfer::share_object(game);
+    
+    // 5. Emit event
+    event::emit(RoomAndGameCreated {
+        room_id,
+        game_id,
+        creator: one::tx_context::sender(ctx),
+        entry_fee,
+        max_players,
+    });
 }
 
 public entry fun configure_game_admin<T>(
