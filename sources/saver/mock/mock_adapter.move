@@ -435,41 +435,22 @@ public fun harvest<U, T, S>(
     redeem_pool::donate(rp_config, ut_coin, rp_vault);
 }
 
-public fun harvest_to_pool<U, T, S>(
-    config: &AdapterConfig,
-    ut: &mut UnderlyingToken<U, T ,S>,
+/// Keeper calls this to recover a vault from yield loss using InsurancePool.
+public fun rebalance<U, T, S>(
     _: &KeeperCap,
-    minter: &mut Minter<S>,
+    pool: &mut InsurancePool<U>,
     vault: &mut Vault<T>,
-    clock: &Clock,
-    minimum_amount_out: u128,
-    rp_config: &RedeemPoolConfig,
-    rp_vault: &mut RedeemPoolVault<U, S>,
-    insurance_pool: &mut InsurancePool<U>,
+    minter: &Minter<S>,
     mock_vault: &mut MockVault<U, T>,
     ctx: &mut TxContext
 ) {
     let price = mock::price(mock_vault);
-    let conversion_factor = 10u128.pow(ut.dt_decimals - ut.decimals);
-    let (distribute_amount, fee, _, unwrap_coin) = saver::harvest<T, S>(
-        &config.adapter_cap,
-        _,
-        minter,
-        clock,
-        vault,
-        price,
-        minimum_amount_out,
-        conversion_factor,
-        ctx
-    );
+    let loss = saver::get_loss_amount<T, S>(minter, price);
+    assert!(loss > 0, 0);
 
-    let mut ut_coin = unwrap<U, T>(unwrap_coin, mock_vault, ctx);
-    assert!(coin::value(&ut_coin) as u128 >= distribute_amount + fee, 0);
-    
-    let coin_to_fee = coin::split(&mut ut_coin, fee as u64, ctx);
-    insurance_pool::deposit_fee(insurance_pool, coin_to_fee);
-    
-    redeem_pool::donate(rp_config, ut_coin, rp_vault);
+    let ut_balance = insurance_pool::cover_loss(pool, loss as u64);
+    let yt_coin = wrap<U, T>(coin::from_balance(ut_balance, ctx), mock_vault, ctx);
+    saver::deposit_to_vault(vault, coin::into_balance(yt_coin));
 }
 
 
