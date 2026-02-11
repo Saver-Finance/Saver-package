@@ -6,6 +6,7 @@ edition = "2024.beta"
 MoveStdlib = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "main", override = true }
 One = { git = "https://github.com/one-chain-labs/onechain.git", subdir = "crates/sui-framework/packages/one-framework", rev = "main" }
 
+
 [addresses]
 games = "0x0"
 gamehub = "0x0"

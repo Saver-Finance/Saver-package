@@ -1,6 +1,7 @@
 module saver::template_adapter;
 
 use saver::redeem_pool::{Self, Config as RedeemPoolConfig, Vault as RedeemPoolVault};
+use saver::insurance_pool::{Self, InsurancePool};
 use saver::limiter::{Self, Limiter, LimiterAccessCap, LimiterConfig};
 use saver::saver::{Self, AdapterCap, Config, UserInfo, Vault, Minter, KeeperCap};
 use saver::error::{Self, unAuthorize, notEnoughBalance, alreadyInitialize, freezeVault};
@@ -138,6 +139,28 @@ public fun deposit<U, T, S>(
     );
 }
 
+public fun deposit2<U, T, S>(
+    config: &AdapterConfig, 
+    token_in: Coin<T>,
+    user_info: Option<UserInfo<T, S>>, 
+    vault: &mut Vault<T>, 
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    ctx: &mut TxContext
+) {
+    let price = get_price<U, T>();
+    saver::deposit2(
+        &config.adapter_cap,
+        token_in,
+        price,
+        user_info,
+        vault,
+        minter,
+        clock,
+        ctx
+    );
+}
+
 public fun deposit_underlying<U, T, S>(
     ut: &UnderlyingToken<U, T, S>, 
     config: &AdapterConfig, 
@@ -146,6 +169,7 @@ public fun deposit_underlying<U, T, S>(
     vault: &mut Vault<T>,
     minter: &mut Minter<S>,
     clock: &Clock,
+    ctx: &mut TxContext
 ) {
     assert!(ut.enable == true, freezeVault());
     let yt_coin = wrap<U, T>(token_in);
@@ -158,7 +182,31 @@ public fun deposit_underlying<U, T, S>(
         vault,
         minter,
         clock,
-  
+    );
+}
+
+public fun deposit_underlying2<U, T, S>(
+    ut: &UnderlyingToken<U, T, S>, 
+    config: &AdapterConfig, 
+    token_in: Coin<U>, 
+    user_info: Option<UserInfo<T, S>>,
+    vault: &mut Vault<T>,
+    minter: &mut Minter<S>,
+    clock: &Clock,
+    ctx: &mut TxContext
+) {
+    assert!(ut.enable == true, freezeVault());
+    let yt_coin = wrap<U, T>(token_in);
+    let price = get_price<U, T>();
+    saver::deposit2(
+        &config.adapter_cap,
+        yt_coin,
+        price,
+        user_info,
+        vault,
+        minter,
+        clock,
+        ctx
     );
 }
 
@@ -286,12 +334,13 @@ public fun repay<U, T, S>(
         minter,
         clock,
         price,
-        conversion_factor
+        conversion_factor,
+        &mut ut.limiter,
+        &ut.limiter_cap
     );
  
-    let current_repay_limit = limiter::get(&ut.limiter, clock);
-    assert!(amount_to_repay as u128 <= current_repay_limit, 0);
-    limiter::decrease(&ut.limiter_cap, &mut ut.limiter, clock, amount_to_repay as u128);
+    // Limiter check/decrease is now done inside saver::repay!
+    // We can remove the redundant check here.
    
     if(amount_to_repay < amount) {
         let coin_to_repay = coin::split(&mut token, amount_to_repay, ctx);
@@ -368,9 +417,38 @@ public fun harvest<U, T, S>(
 
     let mut ut_coin = unwrap<U, T>(unwrap_coin);
     assert!(coin::value(&ut_coin) as u128 >= distribute_amount + fee, 0);
+    
     let coin_to_fee_receiver = coin::split(&mut ut_coin, fee as u64, ctx);
     transfer::public_transfer(coin_to_fee_receiver, fee_receiver);
+    
     redeem_pool::donate(rp_config, ut_coin, rp_vault);
+}
+// NOTE: To route harvest fees to InsurancePool, set Minter.protocol_fee_receiver 
+// to the InsurancePool's object address. harvest() already uses public_transfer.
+
+/// Keeper calls this to recover a vault from yield loss using InsurancePool.
+/// Flow: query loss → pull from pool → wrap U→T → deposit into vault.
+public fun rebalance<U, T, S>(
+    _: &KeeperCap,
+    pool: &mut InsurancePool<U>,
+    vault: &mut Vault<T>,
+    minter: &Minter<S>,
+    ctx: &mut TxContext
+) {
+    let price = get_price<U, T>();
+
+    // 1. Query how much loss exists
+    let loss = saver::get_loss_amount<T, S>(minter, price);
+    assert!(loss > 0, 0);
+
+    // 2. Pull from InsurancePool
+    let ut_balance = insurance_pool::cover_loss(pool, loss as u64);
+
+    // 3. Wrap underlying → yield token
+    let yt_coin = wrap<U, T>(coin::from_balance(ut_balance, ctx));
+
+    // 4. Deposit into vault reserve
+    saver::deposit_to_vault(vault, coin::into_balance(yt_coin));
 }
 
 // TODO: Implement get_price<U, T> function to get price between yield token and underlying token
@@ -388,6 +466,5 @@ fun wrap<U, T>(token: Coin<U>): Coin<T>{
 fun unwrap<U, T>(token: Coin<T>): Coin<U> {
     abort 0
 }
-
 
 

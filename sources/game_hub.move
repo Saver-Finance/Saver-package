@@ -9,6 +9,8 @@ use one::oct::OCT;
 use std::string::{Self, String};
 use one::table::{Self, Table};
 use std::type_name::{Self, TypeName};
+#[test_only]
+use gamehub::lobby;
 
 const FEE_RATE_DENOMINATOR: u64 = 1000; 
 const MIN_ENTRY_FEE: u64 = 100; // Minimum entry fee to prevent 0-pool games
@@ -41,6 +43,8 @@ public enum Status has store, copy, drop {
 public struct AdminCap has key {
     id: UID,
 }
+
+const EWrongPlayerCount: u64 = 17;
 
 public struct GameCap has key, store {
     id: UID,
@@ -142,7 +146,7 @@ public fun create_room_internal<T, G>(
     max_players: u8,
     mut creation_fee: Coin<T>,
     ctx: &mut TxContext
-) {
+): object::ID {
     let game_type = type_name::with_defining_ids<G>();
 
     assert!(is_game_registered(registry, game_type), EGameNotRegistered);
@@ -177,7 +181,9 @@ public fun create_room_internal<T, G>(
         status: Status::Waiting,
         ready_players: table::new(ctx),
     };
+    let id = object::id(&room);
     transfer::share_object(room);
+    id
 }
 
 
@@ -191,10 +197,10 @@ public fun leave_room_internal<T>(
     assert!(table::contains(&room.player_balances, user), EPlayerNotFound);
     let is_ready = *table::borrow(&room.ready_players, user);
 
-assert!(!is_ready, EAlreadyReady); 
+    assert!(!is_ready, ECannotLeaveWhenReady); 
 
-let _ = table::remove(&mut room.player_balances, user);
-let _ = table::remove(&mut room.ready_players, user);
+    let _ = table::remove(&mut room.player_balances, user);
+    let _ = table::remove(&mut room.ready_players, user);
 
 let mut i = 0;
 let len = vector::length(&room.joined_players);
@@ -408,6 +414,66 @@ entry fun reset_room<T>(
     room.status = Status::Waiting;
 }
 
+/// Delete a room completely. 
+/// Constraint: Only allowed if Room is in Waiting status and has at most 1 player.
+entry fun delete_room<T>(
+    room: Room<T>,
+    ctx: &mut TxContext
+) {
+    let Room { 
+        id, 
+        game_type: _, 
+        creator: _, 
+        entry_fee: _, 
+        max_players: _, 
+        mut player_balances, 
+        joined_players, 
+        mut pool, 
+        status, 
+        mut ready_players 
+    } = room;
+
+    assert!(status == Status::Waiting, ERoomNotWaiting);
+    assert!(vector::length(&joined_players) <= 1, EWrongPlayerCount);
+
+    // Clean up players (0 or 1)
+    let mut i = 0;
+    while (i < vector::length(&joined_players)) {
+        let player = *vector::borrow(&joined_players, i);
+        
+        // Refund balance if any
+        if (table::contains(&player_balances, player)) {
+            let amount = table::remove(&mut player_balances, player);
+            if (amount > 0) {
+                 // The coin is in the pool
+                 // We split from pool and send to player
+                 // pool is a Balance, need to turn to Coin
+                 let refund = coin::from_balance(balance::split(&mut pool, amount), ctx);
+                 transfer::public_transfer(refund, player);
+            }
+        };
+        
+        // Remove ready status
+        if (table::contains(&ready_players, player)) {
+            table::remove(&mut ready_players, player);
+        };
+        
+        i = i + 1;
+    };
+
+    // Refund any remaining dust in pool to sender (creator usually)
+    if (balance::value(&pool) > 0) {
+        transfer::public_transfer(coin::from_balance(pool, ctx), tx_context::sender(ctx));
+    } else {
+        balance::destroy_zero(pool);
+    };
+
+    table::destroy_empty(player_balances);
+    table::destroy_empty(ready_players);
+    object::delete(id);
+}
+
+
 /// Get the current pool value for a room
 public fun get_pool_value<T>(room: &Room<T>): u64 {
     balance::value(&room.pool)
@@ -428,6 +494,15 @@ public fun get_max_players<T>(room: &Room<T>): u8 {
     room.max_players
 }
 
+public fun get_room_creation_fee(config: &Config): u64 {
+    config.room_creation_fee
+}
+
+#[test_only]
+public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
+    lobby::init_for_testing(ctx);
+}
 
 entry fun update_config(
     config: &mut Config,
@@ -460,7 +535,8 @@ entry fun create_room<T, G>(
     creation_fee: Coin<T>,
     ctx: &mut TxContext
 ) {
-    create_room_internal<T, G>(registry, config, entry_fee, max_players, creation_fee, ctx);
+
+    let _ = create_room_internal<T, G>(registry, config, entry_fee, max_players, creation_fee, ctx);
 }
 
 entry fun join_room<T>(
@@ -511,4 +587,6 @@ entry fun settle<T>(
 ) {
     settle_internal(room, addresses, amounts, game_cap, ctx);
 }
+
+
 

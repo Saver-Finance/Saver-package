@@ -799,6 +799,8 @@ fun test_mint() {
     print(&saver::yt_config_distributed_credit<YOCT, SROCT>(&sroct_minter));
 
     let user2_profit = saver::get_user_info_profit(&user2_saver_info) as u64;
+    let allowance = saver::get_user_info_mint_allowance(&user2_saver_info);
+
     mock_adapter::mint(
         &uts,
         &adapter_config,
@@ -812,8 +814,7 @@ fun test_mint() {
     );
     test_scenario::next_tx(&mut scenario, User2);
     let user2_debt = saver::get_user_info_debt(&user2_saver_info);
-    print(&user2_debt);
-    assert!(user2_debt == 1000, 0);
+    assert!(user2_debt == 1000 - allowance, 0);
 
     // return all shared objects 
     test_scenario::return_shared(saver_config);

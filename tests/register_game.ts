@@ -22,7 +22,7 @@ const HACKATHON_COIN_TYPE = "0x8b76fc2a2317d45118770cefed7e57171a08c477ed1628361
 // ============================================================================
 
 const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY;
-const ADMIN_MNEMONIC = process.env.USER_1;
+const ADMIN_MNEMONIC = process.env.USER_2;
 // ============================================================================
 // Script
 // ============================================================================
@@ -51,7 +51,7 @@ async function registerGame() {
             tx.object(ADMIN_CAP!),
             tx.pure.vector('u8', Array.from(new TextEncoder().encode('Bomb Panic'))),
         ],
-        typeArguments: [`${PACKAGE_ID}::bomb_panic::GameState<${HACKATHON_COIN_TYPE}>`],
+        typeArguments: [`${PACKAGE_ID}::bomb_panic::GameState<${COIN_TYPE}>`],
     });
     // set admin as game cap 
     tx.transferObjects([gameCap], adminAddress);

@@ -2,10 +2,6 @@ module saver::redeem_pool;
 
 use one::coin::{Self, Coin};
 use one::balance::{Self, Balance};
-use one::transfer::{Self};
-use std::u128::{min, max};
-use one::object::{Self, UID};
-use one::tx_context::{Self, TxContext};
 use saver::saver::{Self, Minter};
 
 
@@ -20,8 +16,6 @@ public struct Vault<phantom U, phantom S> has key {
     ut_balance: Balance<U>,
     conversion_factor: u128,
 }
-
-const ONE: u128 = 1000000000000000000;
 
 
 fun init(ctx: &mut TxContext) {
@@ -79,14 +73,6 @@ public fun donate<U, S>(
     assert!(amount > 0, 0);
     let new_ut = coin::into_balance(token);
     balance::join(&mut vault.ut_balance, new_ut);
-}
-
-
-fun i_normalize_ut_to_dt(
-    amount_ut: u128,
-    conversion_factor: u128,
-): u128 {
-    (amount_ut as u128) * conversion_factor
 }
 
 fun i_normalize_dt_to_ut(
