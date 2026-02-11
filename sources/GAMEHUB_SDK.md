@@ -2,6 +2,23 @@
 
 This document provides a guide for interacting with the `gamehub` module on the One blockchain. It is intended for SDK developers and game integrators.
 
+## Addresses
+PACKAGE_ID="0xf4cd45ff567345209a32d2d2e962638d1ff73ab2ffca0a1eeceb6c469a95c414"
+
+GAME_REGISTRY = "0x4df5ad6828579b290b84ae252f0e05a2d2f850f9a9ec05c175381b486b686c8a"
+
+GAME_CAP = "0x3affbb9de92065747eaeced9fe1bda6961e25cc09e6a97e8d9ed557fae460156"
+
+ADMIN_CAP = "0x73c8cbf91ddff5eba8f14620f084a8b664e80d7c504d3beecfde0e34eaaf91aa"
+
+CONFIG = "0xe8cba26df7110c0048783482195502223e38cec7a72f7fdc7099f58f8234b00c"
+
+LOBBY_ID="0xf08db774dd55e6a43bea48a8d49a6ae376403269297a538df36c5dc1f08839a6"
+
+UPGRADE_CAP = "0x9b372265ce25312f1eed3d37cdb10f5ef18cc1664ffe7f5ef91e31deed4e1abe"
+
+GAME_CAP_HACKATHON = "0x88862b4e4114ba2353aac81b93a33a83e55d4a3911beec6249821fa3dfe3fdb3"
+
 ## Overview
 
 The GameHub module acts as a lobby and escrow system for on-chain games. It handles:
