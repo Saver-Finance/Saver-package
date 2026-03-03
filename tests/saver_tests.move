@@ -6,6 +6,7 @@ use saver::mock_adapter::{Self, AdapterConfig, UnderlyingToken, LiquidateLimiter
 use saver::limiter::{Self, LimiterConfig};
 use saver::mock::{Self, Vault as MockVault};
 use saver::redeem_pool::{Self, Config as RdConfig, Vault as RdVault};
+use saver::insurance_pool::{Self, InsurancePool};
 use saver::yoct::{Self, YOCT};
 use saver::sroct::{Self, SROCT};
 use saver::error::{Self};
@@ -1604,8 +1605,87 @@ public fun test_redeem_pool() {
     clock::destroy_for_testing(clock);
 }
 
+#[test]
+public fun test_insurance_pool_rebalance() {
+    let mut scenario = test_scenario::begin(Admin);
+    let mut clock = clock::create_for_testing(test_scenario::ctx(&mut scenario));
+    clock::set_for_testing(&mut clock, 1000);
+    prepare_state(&clock, &mut scenario);
+
+    test_scenario::next_tx(&mut scenario, Keeper);
+    insurance_pool::create<OCT>(test_scenario::ctx(&mut scenario));
+    test_scenario::next_tx(&mut scenario, Keeper);
+
+    let mut pool = test_scenario::take_shared<InsurancePool<OCT>>(&scenario);
+    let saver_config = test_scenario::take_shared<SaverConfig>(&scenario);
+    let limiter_config = test_scenario::take_shared<LimiterConfig>(&scenario);
+    let adapter_config = test_scenario::take_shared<AdapterConfig>(&scenario);
+    let mut mock_share_vault = test_scenario::take_shared<MockVault<OCT, YOCT>>(&scenario);
+    let mut sroct_minter = test_scenario::take_shared<SaverMinter<SROCT>>(&scenario);
+    let mut saver_vault_reserve = test_scenario::take_shared<SaverReserve<YOCT>>(&scenario);
+
+    init_saver_user_info<YOCT, SROCT>(&sroct_minter, &mut scenario, User1);
+    let mut user1_saver_info = test_scenario::take_from_address<SaverUserInfo<YOCT, SROCT>>(&scenario, User1);
+
+    test_scenario::next_tx(&mut scenario, User1);
+    let coin_to_deposit = coin::mint_for_testing<OCT>(10000000, test_scenario::ctx(&mut scenario));
+    let coin_to_deposit = mock::deposit(&mut mock_share_vault, coin_to_deposit, test_scenario::ctx(&mut scenario));
+    mock_adapter::deposit(
+        &adapter_config,
+        coin_to_deposit,
+        &mut user1_saver_info,
+        &mut saver_vault_reserve,
+        &mut sroct_minter,
+        &clock,
+        &mock_share_vault
+    );
+
+    test_scenario::next_tx(&mut scenario, Admin);
+    let current_price = mock::price(&mock_share_vault);
+    let adapter_cap = saver::take_adapter_cap(&saver_config, test_scenario::ctx(&mut scenario));
+    saver::snap<YOCT, SROCT>(&adapter_cap, &mut sroct_minter, current_price * 2);
+    transfer::public_transfer(adapter_cap, Admin);
+
+    let loss_before = saver::get_loss_amount<YOCT, SROCT>(&sroct_minter, current_price);
+    assert!(loss_before > 0, 0);
+
+    let fee_coin = coin::mint_for_testing<OCT>((loss_before + 1000) as u64, test_scenario::ctx(&mut scenario));
+    insurance_pool::deposit_fee(&mut pool, fee_coin);
+    let reserve_before = insurance_pool::reserve_value(&pool) as u128;
+
+    test_scenario::next_tx(&mut scenario, Keeper);
+    let keeper_cap = test_scenario::take_from_address<saver::KeeperCap>(&scenario, Keeper);
+    mock_adapter::rebalance(
+        &keeper_cap,
+        &mut pool,
+        &mut saver_vault_reserve,
+        &mut sroct_minter,
+        &mut mock_share_vault,
+        test_scenario::ctx(&mut scenario)
+    );
+
+    let loss_after = saver::get_loss_amount<YOCT, SROCT>(&sroct_minter, current_price);
+    let reserve_after = insurance_pool::reserve_value(&pool) as u128;
+    assert!(loss_after == 0, 0);
+    assert!(reserve_after < reserve_before, 0);
+
+    test_scenario::return_shared(pool);
+    test_scenario::return_shared(saver_config);
+    test_scenario::return_shared(limiter_config);
+    test_scenario::return_shared(adapter_config);
+    test_scenario::return_shared(mock_share_vault);
+    test_scenario::return_shared(sroct_minter);
+    test_scenario::return_shared(saver_vault_reserve);
+
+    test_scenario::return_to_address(User1, user1_saver_info);
+    test_scenario::return_to_address(Keeper, keeper_cap);
+
+    test_scenario::next_tx(&mut scenario, Admin);
+    test_scenario::end(scenario);
+    clock::destroy_for_testing(clock);
+}
+
 // #[test, expected_failure(abort_code = ::saver::saver_tests::ENotImplemented)]
 // fun test_saver_fail() {
 //     abort ENotImplemented
 // }
-

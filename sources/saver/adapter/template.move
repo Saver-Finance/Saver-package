@@ -432,7 +432,7 @@ public fun rebalance<U, T, S>(
     _: &KeeperCap,
     pool: &mut InsurancePool<U>,
     vault: &mut Vault<T>,
-    minter: &Minter<S>,
+    minter: &mut Minter<S>,
     ctx: &mut TxContext
 ) {
     let price = get_price<U, T>();
@@ -442,13 +442,14 @@ public fun rebalance<U, T, S>(
     assert!(loss > 0, 0);
 
     // 2. Pull from InsurancePool
-    let ut_balance = insurance_pool::cover_loss(pool, loss as u64);
+    let ut_balance = insurance_pool::cover_loss(pool, loss as u64, ctx);
 
     // 3. Wrap underlying → yield token
     let yt_coin = wrap<U, T>(coin::from_balance(ut_balance, ctx));
 
     // 4. Deposit into vault reserve
     saver::deposit_to_vault(vault, coin::into_balance(yt_coin));
+    saver::apply_loss_coverage<T, S>(minter, price, loss);
 }
 
 // TODO: Implement get_price<U, T> function to get price between yield token and underlying token
@@ -466,5 +467,4 @@ fun wrap<U, T>(token: Coin<U>): Coin<T>{
 fun unwrap<U, T>(token: Coin<T>): Coin<U> {
     abort 0
 }
-
 

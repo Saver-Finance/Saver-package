@@ -440,7 +440,7 @@ public fun rebalance<U, T, S>(
     _: &KeeperCap,
     pool: &mut InsurancePool<U>,
     vault: &mut Vault<T>,
-    minter: &Minter<S>,
+    minter: &mut Minter<S>,
     mock_vault: &mut MockVault<U, T>,
     ctx: &mut TxContext
 ) {
@@ -448,9 +448,10 @@ public fun rebalance<U, T, S>(
     let loss = saver::get_loss_amount<T, S>(minter, price);
     assert!(loss > 0, 0);
 
-    let ut_balance = insurance_pool::cover_loss(pool, loss as u64);
+    let ut_balance = insurance_pool::cover_loss(pool, loss as u64, ctx);
     let yt_coin = wrap<U, T>(coin::from_balance(ut_balance, ctx), mock_vault, ctx);
     saver::deposit_to_vault(vault, coin::into_balance(yt_coin));
+    saver::apply_loss_coverage<T, S>(minter, price, loss);
 }
 
 
@@ -477,5 +478,4 @@ fun unwrap<U, T>(
 ): Coin<U> {
     mock::withdraw(vault, token, ctx)
 }
-
 

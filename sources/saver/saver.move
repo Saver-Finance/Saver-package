@@ -843,6 +843,9 @@ fun i_distribute_unlock_credit(vault: &mut YieldTokenConfig, clock: &Clock) {
     if(unlock_credit == 0) {
         return
     };
+    if(vault.total_shares == 0) {
+        return
+    };
     vault.accrued_weight = vault.accrued_weight + unlock_credit * FIXED_POINT_SCALAR / vault.total_shares;
     vault.distributed_credit = vault.distributed_credit + unlock_credit;
 }
@@ -1037,10 +1040,11 @@ fun i_distribute_credit(
     let pending_credit = yt.pending_credit;
     let distributed_credit = yt.distributed_credit;
     let unlocked_credit = i_calculate_unlocked_credit(yt, clock);
-    let locked_credit = pending_credit - distributed_credit - unlocked_credit;
+    let mut locked_credit = pending_credit - distributed_credit;
 
-    if(unlocked_credit > 0) {
+    if(unlocked_credit > 0 && yt.total_shares > 0) {
         yt.accrued_weight = yt.accrued_weight + unlocked_credit * FIXED_POINT_SCALAR / yt.total_shares;
+        locked_credit = locked_credit - unlocked_credit;
     };
 
     yt.pending_credit = amount + locked_credit;
@@ -1202,4 +1206,29 @@ public fun get_loss_amount<T, S>(
     } else {
         0
     }
+}
+
+/// Apply external coverage to a vault after InsurancePool-funded top-up.
+/// This increases active_balance without changing expected_value, reducing loss.
+public fun apply_loss_coverage<T, S>(
+    minter: &mut Minter<S>,
+    price: u128,
+    amount_ut: u128
+) {
+    if (amount_ut == 0) {
+        return
+    };
+    let tname = type_name::with_original_ids<T>();
+    let yt_info = table::borrow_mut(&mut minter.ytc, tname);
+    let current_value = i_convert_yt_to_ut(price, yt_info.active_balance, yt_info.decimals);
+    if (yt_info.expected_value <= current_value) {
+        return
+    };
+    let remaining_loss = yt_info.expected_value - current_value;
+    let cover_ut = min(amount_ut, remaining_loss);
+    let cover_yt = i_convert_ut_to_yt(price, cover_ut, yt_info.decimals);
+    if (cover_yt == 0) {
+        return
+    };
+    yt_info.active_balance = yt_info.active_balance + cover_yt;
 }

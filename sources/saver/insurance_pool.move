@@ -35,7 +35,9 @@ public fun deposit_fee<U>(
 public fun cover_loss<U>(
     pool: &mut InsurancePool<U>,
     amount: u64,
+    ctx: &TxContext
 ): Balance<U> {
+    assert!(ctx.sender() == pool.admin, 0);
     balance::split(&mut pool.reserve, amount)
 }
 
@@ -51,4 +53,9 @@ public fun withdraw_for_loss<U>(
     
     let split = balance::split(&mut pool.reserve, amount);
     coin::from_balance(split, ctx)
+}
+
+#[test_only]
+public fun reserve_value<U>(pool: &InsurancePool<U>): u64 {
+    balance::value(&pool.reserve)
 }
